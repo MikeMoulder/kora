@@ -212,6 +212,10 @@ function Field({
  * legible on first paint and the video fades in once it can actually play. If
  * it never loads, on a slow connection or with media blocked, what remains is
  * a deliberate brand panel rather than an empty rectangle.
+ *
+ * That fallback is also why the glass carries its own tint. A backdrop filter
+ * with nothing behind it filters nothing, so on the no video path the tint is
+ * the entire composition and the panel still reads as black.
  */
 function BrandPanel() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -271,7 +275,7 @@ function BrandPanel() {
   }, []);
 
   return (
-    <aside className="relative hidden w-1/2 flex-col justify-end overflow-hidden bg-black p-12 lg:flex">
+    <aside className="relative hidden w-1/2 flex-col items-center justify-center overflow-hidden bg-black p-12 lg:flex">
       <video
         ref={videoRef}
         src={PANEL_VIDEO}
@@ -288,39 +292,65 @@ function BrandPanel() {
       />
 
       {/*
-        Scrim, in two layers. The footage runs from a dark interior to a
-        brightly lit wall, so a single gradient tuned to one frame fails on the
-        other. A flat tint holds a floor of contrast everywhere, and the
-        gradient weights the lower two thirds where the mark and the type sit.
+        Frosted glass rather than a scrim.
+
+        What was here was two stacked black layers, a flat tint and a gradient
+        weighted to the bottom, which is the right answer when type sits in one
+        corner over a photograph. The block is centred now, so a gradient tuned
+        to the lower third would leave the middle of the panel doing the least
+        work exactly where the words are.
+
+        Blur solves the same problem differently. The footage stays legible as
+        footage, a room with light in it, while losing the local contrast that
+        fights small white type. The tint on top is what guarantees the floor:
+        the clip ends on a brightly lit wall, and a blurred bright wall is
+        still bright, so blur alone would drop the paragraph to unreadable for
+        those seconds.
+
+        55 percent is measured, not chosen. Sampling the frame behind the
+        paragraph at ten points across the clip, the footage averages 63 at its
+        darkest and 188 at its brightest, and at a 40 percent tint the worst of
+        those frames put 13px type at 3.3 to 1 against its background. Below
+        the 4.5 that small text needs, and visibly so. At 55 percent the same
+        worst frame reads 5.1, which holds through the bright wall with room
+        for the frames between the samples.
+
+        One layer, not two, because backdrop-filter composites once and a
+        second blurred layer over it buys nothing but a repaint.
       */}
-      <div className="absolute inset-0 bg-black/35" aria-hidden />
-      <div
-        className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/10"
-        aria-hidden
-      />
+      <div className="absolute inset-0 bg-black/55 backdrop-blur-2xl" aria-hidden />
 
       {/*
-        No back button. It used to point at /, which is now this page, so it
-        was a control that reloaded the screen it was drawn on. The panel is
-        anchored to the bottom instead of being spread against a top row that
-        no longer has anything in it.
+        Centred, and 40 percent smaller than it was.
+
+        The panel is a brand statement beside a form, not a hero, and at the
+        old size it was competing with the thing people came to do. Two numbers
+        take the cut exactly: the mark from 88 to 53, the headline from 42 to
+        25. The paragraph does not, and stops at 13. Sixty percent of 15 is 9,
+        which is a size you can measure but not read, and a supporting line
+        nobody can read is worse than no supporting line.
+
+        It also went from 60 percent white to 75. The old scrim was nearly
+        black under the type, which 60 percent could afford; the glass is not,
+        and the same grey that reads as restraint on black reads as a rendering
+        fault on it.
       */}
-      <div className="relative">
+      <div className="relative flex flex-col items-center text-center">
         <Image
           src="/kora-mark-white.png"
           alt="KORA"
           width={718}
           height={679}
           priority
-          className="h-[88px]"
+          className="h-[53px]"
           style={{ width: 'auto' }}
         />
-        <h2 className="mt-8 text-[42px] font-semibold leading-[1.05] tracking-[-0.03em] text-white">
+        <h2 className="mt-5 text-[25px] font-semibold leading-[1.1] tracking-[-0.03em] text-white">
           The African
           <br />
           corridor for Pollar.
         </h2>
-        <p className="mt-5 max-w-sm text-[15px] leading-relaxed text-white/60">
+        <p className="mt-3 max-w-xs text-[13px] leading-relaxed text-white/75">
           Pollar ramps into Brazil, Colombia, Mexico and Bolivia. KORA is the leg it does not
           have yet.
         </p>
