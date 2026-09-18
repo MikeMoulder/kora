@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** U, the front door
-**Commits:** 141
+**Commits:** 144
 
 ---
 
@@ -172,6 +172,10 @@ Still outstanding, and both small:
 | 2026-09-18 | Final production build | `npm run build` | 23 routes + Proxy | Clean |
 | 2026-09-18 | API not gated | Browser fetch of `/api/rates`, no cookie | 1 | 200 with live rates, matcher confirmed |
 | 2026-09-18 | Gate layout, 375px | Browser measurement | Overflow | None, sign out fits beside the bell |
+| 2026-09-18 | Panel contrast before the fix | Frame sampling across the clip | 10 frames | Worst 3.3:1 at 13px, under the 4.5 AA floor |
+| 2026-09-18 | Panel contrast after the fix | Frame sampling across the clip | 10 frames | 5.0 to 10.0, worst 5.03, passes |
+| 2026-09-18 | Glass compositing cost | rAF timing over playing video | 120 frames | 61fps, worst frame 17.2ms |
+| 2026-09-18 | Sign in layout after the restyle | Browser measurement, 1440 and pane width | Overflow | None |
 | 2026-09-18 | Smoke after dashboard | `npm run smoke` | 34 checks | All passed, no regression |
 | 2026-09-18 | Typecheck during overview cleanup | `npx tsc --noEmit` | Whole project | Clean, run 5 times |
 | 2026-09-18 | Smoke after overview cleanup | `npm run smoke` | 34 checks | All passed, no regression |
@@ -839,6 +843,33 @@ only happens on the way out.
 on Back, which looked like the fix not working. It was a stale dev compile. Re-running the
 whole sequence against recompiled output passed. The lesson is narrow and practical: in dev,
 confirm the code under test is the code being served before concluding anything about it.
+
+### Phase U2, the brand panel became glass
+
+Requested: drop the black gradient for a glassy blur, centre the mark and the words, and
+take 40 percent off the size.
+
+The first two are straightforward. The panel centres on both axes and the block is centred
+within it. The mark goes 88 to 53, the headline 42 to 25, both exactly 60 percent of what
+they were. The paragraph stops at 13 rather than 9, because 60 percent of 15 is a size you
+can measure but not read.
+
+The gradient was doing work that the blur does not, and this is the part worth recording.
+Two stacked black layers, a flat tint under a gradient weighted to the bottom, is the right
+answer when type sits in a corner over a photograph. It is the wrong answer for a centred
+block, since the gradient would be lightest exactly where the words now are. Blur removes
+the local contrast that fights small white type without pretending the footage is not
+there, which is what was asked for, but a blurred bright wall is still a bright wall.
+
+**So the tint was measured rather than picked.** Sampling the frame behind the paragraph at
+ten points across the 27 second clip, the footage averages 63 at its darkest and 188 at its
+brightest as it settles on a lit wall. At a 40 percent tint the worst frame put 13px type
+at 3.3 to 1, under the 4.5 that small text needs. At 55 percent, with the paragraph raised
+from 60 to 75 percent white, the same ten frames read 5.0 to 10.0.
+
+Re-measured live after the change: 5.03 at the brightest frame. Also checked what the glass
+costs, since backdrop-filter recomposites over every video frame: 61fps, worst frame 17.2ms,
+which is one frame at 60Hz and no dropped frames across the 120 sampled.
 
 ---
 
