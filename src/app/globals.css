@@ -3,123 +3,134 @@
 /*
  * KORA design tokens.
  *
- * The one rule that drives the palette: colour encodes who owns the leg.
+ * Colour and structure do different jobs here, and keeping them separate is
+ * what stops the palette from muddling the argument.
  *
- *   amber  — the African leg. KORA built it.
- *   cyan   — the Pollar leg. Pollar owns it.
- *   slate  — simulated / not executable.
+ * Structure carries ownership, and it is the part that must survive a bad
+ * projector, a greyscale print and a colour blind reader:
  *
- * So the hand-off is legible as a colour change before anyone reads a label,
- * and a viewer can tell at a glance which parts of the demo we are claiming.
+ *   filled           the leg KORA built
+ *   hairline outline the leg Pollar owns
+ *   dashed outline   simulated, not real
+ *
+ * Colour then reinforces it rather than replacing it. KORA's fill is the
+ * brand yellow, so the thing that is ours is also the thing that is loudest.
+ * Take every colour away and the fills, outlines and dashes still say exactly
+ * the same thing.
+ *
+ * Money direction is the one place hue works alone, because gain and loss
+ * have no structural difference to lean on. It is always paired with a sign
+ * and an arrow so it never depends on hue by itself.
  */
 
 @theme {
-  /* Canvas — warm-shifted near-black, not pure #000 */
-  --color-ink-950: #0a0908;
-  --color-ink-900: #111010;
-  --color-ink-850: #171615;
-  --color-ink-800: #1e1c1b;
-  --color-ink-700: #2a2826;
-  --color-ink-600: #3d3a37;
-  --color-ink-500: #5c5854;
-  --color-ink-400: #8a847e;
-  --color-ink-300: #b5afa8;
-  --color-ink-200: #d9d4ce;
-  --color-ink-100: #efebe6;
+  /* Surfaces */
+  --color-paper: #ffffff;
+  --color-paper-sunk: #f7f8f7;
+  --color-paper-edge: #eef2ef;
 
-  /* KORA — the African leg */
-  --color-amber-glow: #ffb547;
-  --color-amber-core: #f59e0b;
-  --color-amber-deep: #b45309;
-  --color-amber-wash: #2a1f0e;
+  /* The canvas the app floats on, from the reference */
+  --color-mint: #a8d5ba;
+  --color-mint-soft: #cfe7d8;
+  --color-mint-deep: #8bc4a4;
 
-  /* Pollar — the settlement leg */
-  --color-flow-glow: #4fd1c5;
-  --color-flow-core: #14b8a6;
-  --color-flow-deep: #0f766e;
-  --color-flow-wash: #0c2522;
+  /* KORA's accent. Anything filled with this is ours. */
+  --color-accent: #eeeb4a;
+  --color-accent-soft: #f6f4a6;
+  --color-accent-deep: #cfcb1f;
 
-  /* States */
-  --color-live: #34d399;
-  --color-sandbox: #fbbf24;
-  --color-planned: #6b7280;
-  --color-danger: #f87171;
+  /* Ink */
+  --color-ink: #0f1110;
+  --color-ink-soft: #3f4441;
+  --color-ink-muted: #6f7873;
+  --color-ink-faint: #9aa39e;
+  --color-ink-ghost: #cfd5d1;
+
+  /* Money direction */
+  --color-gain: #12844a;
+  --color-loss: #cc2f26;
+
+  /* Lines */
+  --color-rule: #e4e9e6;
+  --color-rule-strong: #0f1110;
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
 body {
-  background: var(--color-ink-950);
-  color: var(--color-ink-100);
+  background: var(--color-paper);
+  color: var(--color-ink);
 }
 
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* Tabular figures everywhere money is shown — digits must not jitter as
-   amounts update. */
+/*
+ * Money must not jitter as it updates, and a column of figures has to line up.
+ */
 .tabular {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
 }
 
-/* A hairline that reads as a seam rather than a border. */
-.seam {
-  border-color: color-mix(in oklab, var(--color-ink-100) 8%, transparent);
-}
-
-.seam-strong {
-  border-color: color-mix(in oklab, var(--color-ink-100) 14%, transparent);
-}
-
-/* Ambient glow behind the hero. Masked at the bottom so the container's own
-   edge never shows as a hard line on a dark canvas. */
-.aurora {
+/* The mint canvas, eased so a large area does not read as a flat block. */
+.canvas {
   background:
-    radial-gradient(48rem 24rem at 10% 0%, color-mix(in oklab, var(--color-amber-core) 13%, transparent), transparent 65%),
-    radial-gradient(44rem 22rem at 90% 14%, color-mix(in oklab, var(--color-flow-core) 11%, transparent), transparent 65%);
-  -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+    radial-gradient(75rem 45rem at 5% -5%, var(--color-mint-deep) 0%, transparent 62%),
+    radial-gradient(65rem 50rem at 100% 105%, var(--color-mint) 0%, transparent 65%),
+    var(--color-mint-soft);
 }
 
-/* The particle that travels the route. */
-@keyframes flow-dash {
-  to {
-    stroke-dashoffset: -1000;
-  }
+/* ── Ownership language ──────────────────────────────────────────────────
+ * Three classes carrying the rule above, so no component restates a border
+ * and the language cannot drift from screen to screen.
+ */
+
+/* KORA's leg. Filled, and filled in the brand colour. */
+.leg-ours {
+  background: var(--color-accent);
+  color: var(--color-ink);
+  border: 1.5px solid var(--color-ink);
 }
 
-.flow-line {
-  stroke-dasharray: 4 10;
-  animation: flow-dash 18s linear infinite;
+/* Pollar's leg. Present and precise, but not ours to claim. */
+.leg-theirs {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  border: 1.5px solid var(--color-ink);
 }
 
-@keyframes pulse-soft {
-  0%,
-  100% {
-    opacity: 0.45;
-  }
-  50% {
-    opacity: 1;
-  }
+/* Simulated. Reads as provisional before a word is read. */
+.leg-simulated {
+  background: var(--color-paper);
+  color: var(--color-ink-muted);
+  border: 1.5px dashed var(--color-ink-faint);
 }
 
-.pulse-soft {
-  animation: pulse-soft 2s ease-in-out infinite;
+/* Designed, not reached yet. */
+.leg-idle {
+  background: var(--color-paper);
+  color: var(--color-ink-faint);
+  border: 1px solid var(--color-rule);
 }
+
+/* ── Motion ──────────────────────────────────────────────────────────────
+ * Restrained. A payment interface that bounces reads as a toy.
+ */
 
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -128,23 +139,55 @@ body {
 }
 
 .rise {
-  animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: rise 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+
+.flow-line {
+  stroke-dasharray: 3 7;
+  animation: flow-dash 20s linear infinite;
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.pulse-soft {
+  animation: pulse-soft 1.8s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .rise,
   .flow-line,
-  .pulse-soft,
-  .rise {
+  .pulse-soft {
     animation: none;
   }
 }
 
-/* Scrollbars that do not shout. */
+/* ── Chrome ──────────────────────────────────────────────────────────── */
+
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-ink-700) transparent;
+  scrollbar-color: var(--color-ink-ghost) transparent;
 }
 
 ::selection {
-  background: color-mix(in oklab, var(--color-amber-core) 35%, transparent);
+  background: var(--color-accent);
+  color: var(--color-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
 }
