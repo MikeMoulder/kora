@@ -313,23 +313,34 @@ function CurrencyStrip({ rates }: { rates: RatesPayload | null }) {
 
 // ── Transactions ──────────────────────────────────────────────────────────
 
+/**
+ * Recent activity.
+ *
+ * The reference gives every transaction its own card rather than ruling one
+ * block into rows, and it is the better reading of the data: each line is a
+ * separate event with its own counterparty and its own direction, so nothing
+ * is gained by binding them into a single object. Separated cards also let a
+ * row be hovered, and later opened, without the list shifting.
+ */
 function Transactions() {
   return (
-    <div className="rounded-2xl border border-rule p-5">
-      <CardLabel
-        action={
-          <Link
-            href="/operator"
-            className="text-[11px] text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
-          >
-            View all
-          </Link>
-        }
-      >
-        Recent activity
-      </CardLabel>
+    <div>
+      <div className="px-1">
+        <CardLabel
+          action={
+            <Link
+              href="/operator"
+              className="text-[11px] text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
+            >
+              View all
+            </Link>
+          }
+        >
+          Recent activity
+        </CardLabel>
+      </div>
 
-      <ul className="mt-3 divide-y divide-rule">
+      <ul className="mt-3 space-y-2">
         {TRANSACTIONS.map((tx) => (
           <TransactionRow key={tx.id} tx={tx} />
         ))}
@@ -342,8 +353,8 @@ function TransactionRow({ tx }: { tx: DemoTransaction }) {
   const outgoing = tx.direction === 'out';
 
   return (
-    <li className="flex items-center gap-3 py-2.5">
-      <Monogram name={tx.party} kind={tx.kind} size={36} />
+    <li className="flex items-center gap-3 rounded-xl border border-rule bg-paper px-4 py-3 shadow-[0_1px_2px_rgba(15,17,16,0.03)] transition-colors hover:border-ink-ghost">
+      <Monogram name={tx.party} kind={tx.kind} size={38} />
 
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] font-medium">{tx.party}</div>
