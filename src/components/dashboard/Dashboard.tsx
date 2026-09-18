@@ -207,6 +207,19 @@ function PanelTriggers({ onSelect }: { onSelect: (panel: PanelMode) => void }) {
 
 // ── Balance ───────────────────────────────────────────────────────────────
 
+/**
+ * The balance card.
+ *
+ * Two surfaces in one object, from the reference: the money sits on the brand
+ * yellow, and the things you can do with it sit on white underneath. That
+ * split is doing work rather than decoration. Everything on the yellow is a
+ * statement about what you have; everything on the white is a button that
+ * changes it, and putting the two on the same fill made the actions read as
+ * more numbers.
+ *
+ * Centred, because the card has one subject. The old left alignment came from
+ * a layout with a second column that no longer exists.
+ */
 function BalanceCard({
   rates,
   balance,
@@ -221,25 +234,13 @@ function BalanceCard({
   const [hidden, setHidden] = useState(false);
 
   return (
-    <div className="min-w-0 rounded-2xl bg-accent p-5 text-ink">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <Flag code="NG" size={15} />
-            <span className="text-[13px] font-semibold tracking-[0.02em]">NGN</span>
-          </div>
-          <div className="mt-1 text-[11px] text-ink/55">
-            {rates
-              ? `1 USD = ₦${rates.basePerUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
-              : 'Loading rate'}
-          </div>
-        </div>
-
+    <div className="min-w-0 overflow-hidden rounded-[24px] border border-rule bg-paper p-1.5 shadow-[0_1px_2px_rgba(15,17,16,0.04)]">
+      <div className="relative rounded-[18px] bg-accent px-5 pb-6 pt-5 text-center text-ink">
         <button
           type="button"
           onClick={() => setHidden((v) => !v)}
           aria-label={hidden ? 'Show balance' : 'Hide balance'}
-          className="shrink-0 rounded-md p-1.5 text-ink/50 transition-colors hover:bg-ink/10 hover:text-ink"
+          className="absolute right-3 top-3 rounded-md p-1.5 text-ink/45 transition-colors hover:bg-ink/10 hover:text-ink"
         >
           {hidden ? (
             <Eye className="h-4 w-4" strokeWidth={1.8} />
@@ -247,29 +248,43 @@ function BalanceCard({
             <EyeOff className="h-4 w-4" strokeWidth={1.8} />
           )}
         </button>
+
+        <div className="flex items-center justify-center gap-2">
+          <Flag code={ACCOUNT.country} size={15} />
+          <span className="text-[13px] font-semibold tracking-[0.02em]">
+            {ACCOUNT.currency}
+          </span>
+        </div>
+
+        <div className="mt-1 text-[11px] text-ink/55">
+          {rates
+            ? `1 USD = ₦${rates.basePerUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+            : 'Loading rate'}
+        </div>
+
+        <div className="tabular mt-4 truncate text-[32px] font-bold leading-none tracking-[-0.04em] sm:text-[38px]">
+          {hidden ? '••••••••' : formatNaira(balance?.balance ?? ACCOUNT.balance)}
+        </div>
+
+        <div className="tabular mt-2 truncate text-[13px] text-ink/60">
+          {hidden
+            ? '•••••'
+            : balance && balance.movements !== 0
+              ? // Once something real has landed, say so rather than leaving the
+                // sample monthly figure to take the credit for it.
+                `${formatNaira(balance.movements, { signed: true })} since you opened this`
+              : `${formatNaira(ACCOUNT.delta, { signed: true })} this month`}
+        </div>
       </div>
 
-      <div className="tabular mt-5 truncate text-[30px] font-semibold leading-none tracking-[-0.035em] sm:text-[36px]">
-        {hidden ? '••••••••' : formatNaira(balance?.balance ?? ACCOUNT.balance)}
-      </div>
-      <div className="tabular mt-2 truncate text-sm text-ink/60">
-        {hidden
-          ? '•••••'
-          : balance && balance.movements !== 0
-            ? // Once something real has landed, say so rather than leaving the
-              // sample monthly figure to take the credit for it.
-              `${formatNaira(balance.movements, { signed: true })} since you opened this`
-            : `${formatNaira(ACCOUNT.delta, { signed: true })} this month`}
-      </div>
-
-      <div className="mt-5 grid grid-cols-2 gap-1 border-t border-ink/15 pt-4">
+      <div className="grid grid-cols-2 divide-x divide-rule">
         <Action
-          icon={<ArrowUpRight className="h-4 w-4" strokeWidth={1.8} />}
+          icon={<ArrowUpRight className="h-[15px] w-[15px]" strokeWidth={2} />}
           label="Pay"
           onClick={onPay}
         />
         <Action
-          icon={<ArrowDownLeft className="h-4 w-4" strokeWidth={1.8} />}
+          icon={<ArrowDownLeft className="h-[15px] w-[15px]" strokeWidth={2} />}
           label="Receive"
           onClick={onReceive}
         />
@@ -291,12 +306,14 @@ function Action({
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-col items-center gap-1.5 rounded-lg py-1.5 text-ink/75 transition-colors hover:bg-ink/10 hover:text-ink"
+      className="group flex flex-col items-center gap-2 py-4 transition-colors hover:bg-paper-sunk"
     >
-      <span className="flex h-8 w-8 items-center justify-center rounded-full border border-ink/25 bg-paper/40">
+      <span className="flex h-9 w-9 items-center justify-center rounded-full border border-rule text-ink-soft transition-colors group-hover:border-ink group-hover:bg-ink group-hover:text-paper">
         {icon}
       </span>
-      <span className="text-[11px] font-medium">{label}</span>
+      <span className="text-[11px] font-medium text-ink-muted transition-colors group-hover:text-ink">
+        {label}
+      </span>
     </button>
   );
 }
