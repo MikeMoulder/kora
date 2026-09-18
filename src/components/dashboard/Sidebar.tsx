@@ -47,7 +47,7 @@ export function Sidebar({
   onSelect: (panel: PanelMode | null) => void;
 }) {
   return (
-    <aside className="flex w-[72px] shrink-0 flex-col items-center border-r border-rule bg-paper py-5">
+    <aside className="flex w-[72px] shrink-0 flex-col items-center py-5">
       <Link href="/" aria-label="KORA home" className="mb-7">
         <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink">
           <Image

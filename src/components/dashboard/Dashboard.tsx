@@ -37,7 +37,7 @@ export function Dashboard() {
 
   return (
     <div className="canvas min-h-screen p-0 lg:p-6 xl:p-9 2xl:p-14">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1320px] overflow-hidden border-rule bg-paper lg:min-h-0 lg:rounded-[28px] lg:border lg:shadow-[0_2px_4px_rgba(15,17,16,0.04),0_24px_60px_-20px_rgba(15,17,16,0.18)]">
+      <div className="surface mx-auto flex min-h-screen w-full max-w-[1320px] overflow-hidden border-rule lg:min-h-0 lg:rounded-[28px] lg:border lg:shadow-[0_2px_4px_rgba(15,17,16,0.04),0_24px_60px_-20px_rgba(15,17,16,0.18)]">
         <div className="hidden lg:flex">
           <Sidebar panel={panel} onSelect={setPanel} />
         </div>
@@ -137,7 +137,7 @@ function PanelFrame({
   return (
     <section
       aria-label={title}
-      className="rise w-full shrink-0 border-t border-rule px-5 py-6 sm:px-7 xl:w-[360px] xl:border-l xl:border-t-0 xl:px-6"
+      className="rise w-full shrink-0 border-t border-rule bg-paper px-5 py-6 sm:px-7 xl:w-[360px] xl:border-l xl:border-t-0 xl:px-6"
     >
       <div className="mb-5 flex items-center justify-between">
         <h2 className="text-[13px] font-semibold tracking-[-0.01em]">{title}</h2>
@@ -287,7 +287,7 @@ function CurrencyStrip({ rates }: { rates: RatesPayload | null }) {
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {(rates?.rates ?? []).map((rate) => (
-          <div key={rate.code} className="rounded-xl border border-rule p-3">
+          <div key={rate.code} className="rounded-xl border border-rule bg-paper p-3">
             <div className="flex items-center gap-1.5">
               <Flag code={rate.country} size={13} />
               <span className="text-[10px] font-medium text-ink-muted">{rate.code}</span>

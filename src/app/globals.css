@@ -82,12 +82,38 @@ body {
   font-feature-settings: "tnum";
 }
 
-/* The mint canvas, eased so a large area does not read as a flat block. */
+/*
+ * The mint canvas the app floats on, from the reference.
+ *
+ * A diagonal run from mint to its deep stop carries the whole area, with a
+ * soft bloom top left and a deeper pool bottom right so a page sized block of
+ * colour does not read as a flat fill behind the card.
+ */
 .canvas {
   background:
-    radial-gradient(75rem 45rem at 5% -5%, var(--color-mint-deep) 0%, transparent 62%),
-    radial-gradient(65rem 50rem at 100% 105%, var(--color-mint) 0%, transparent 65%),
-    var(--color-mint-soft);
+    radial-gradient(70rem 48rem at 10% -5%, var(--color-mint-soft) 0%, transparent 58%),
+    radial-gradient(75rem 55rem at 100% 105%, var(--color-mint-deep) 0%, transparent 62%),
+    linear-gradient(155deg, var(--color-mint) 0%, var(--color-mint-deep) 100%);
+  background-attachment: fixed;
+}
+
+/*
+ * The account surface inside the card.
+ *
+ * The reference does not put the dashboard on flat white. It carries a wash
+ * of the same mint, heaviest at the top left and gone by the middle, which is
+ * what lets the white cards on top of it read as separate objects. Anything
+ * that should read as a card sets its own `bg-paper` against this.
+ *
+ * Mint is 168 213 186. Stated in rgba here because these are washes of the
+ * token rather than the token itself.
+ */
+.surface {
+  background:
+    radial-gradient(52rem 36rem at -4% -8%, rgba(168, 213, 186, 0.55) 0%, transparent 66%),
+    radial-gradient(40rem 30rem at 18% 108%, rgba(168, 213, 186, 0.26) 0%, transparent 60%),
+    linear-gradient(138deg, rgba(168, 213, 186, 0.26) 0%, rgba(168, 213, 186, 0) 58%),
+    var(--color-paper);
 }
 
 /* ── Ownership language ──────────────────────────────────────────────────
