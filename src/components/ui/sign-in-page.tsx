@@ -275,7 +275,7 @@ function BrandPanel() {
   }, []);
 
   return (
-    <aside className="relative hidden w-1/2 flex-col items-center justify-center overflow-hidden bg-black p-12 lg:flex">
+    <aside className="relative hidden w-1/2 flex-col items-start justify-center overflow-hidden bg-black p-12 lg:flex">
       <video
         ref={videoRef}
         src={PANEL_VIDEO}
@@ -292,67 +292,54 @@ function BrandPanel() {
       />
 
       {/*
-        Frosted glass rather than a scrim.
+        The glass is the card, not the panel.
 
-        What was here was two stacked black layers, a flat tint and a gradient
-        weighted to the bottom, which is the right answer when type sits in one
-        corner over a photograph. The block is centred now, so a gradient tuned
-        to the lower third would leave the middle of the panel doing the least
-        work exactly where the words are.
+        A full bleed blur made the whole left half soft, which throws away the
+        footage it was supposed to be showing: a blurred room is a grey field
+        with a lamp in it. The pane is now the size of the words, so the video
+        stays sharp everywhere except directly behind the type, which is the
+        only place its detail was ever a problem.
 
-        Blur solves the same problem differently. The footage stays legible as
-        footage, a room with light in it, while losing the local contrast that
-        fights small white type. The tint on top is what guarantees the floor:
-        the clip ends on a brightly lit wall, and a blurred bright wall is
-        still bright, so blur alone would drop the paragraph to unreadable for
-        those seconds.
+        backdrop-filter clips to the element, so the rounded corners cut the
+        blur as well as the tint and the edge reads as a real pane rather than
+        a rectangle of fog.
 
-        55 percent is measured, not chosen. Sampling the frame behind the
-        paragraph at ten points across the clip, the footage averages 63 at its
-        darkest and 188 at its brightest, and at a 40 percent tint the worst of
-        those frames put 13px type at 3.3 to 1 against its background. Below
-        the 4.5 that small text needs, and visibly so. At 55 percent the same
-        worst frame reads 5.1, which holds through the bright wall with room
-        for the frames between the samples.
+        55 percent is measured, not chosen, and the measurement still holds
+        because the card blurs what sits behind it exactly as the full bleed
+        layer did. Sampling the frame behind the paragraph at ten points across
+        the clip, the footage averages 63 at its darkest and 188 at its
+        brightest as it settles on a lit wall. At a 40 percent tint the worst
+        of those frames put the paragraph at 3.3 to 1 against its background,
+        under the 4.5 that text this size needs. At 55 it reads 5.0.
 
-        One layer, not two, because backdrop-filter composites once and a
-        second blurred layer over it buys nothing but a repaint.
+        The hairline is doing real work, not decoration. Against the dark half
+        of the clip the card and the footage are close enough in value that the
+        pane has no edge at all without it.
       */}
-      <div className="absolute inset-0 bg-black/55 backdrop-blur-2xl" aria-hidden />
-
-      {/*
-        Centred, and 40 percent smaller than it was.
-
-        The panel is a brand statement beside a form, not a hero, and at the
-        old size it was competing with the thing people came to do. Two numbers
-        take the cut exactly: the mark from 88 to 53, the headline from 42 to
-        25. The paragraph does not, and stops at 13. Sixty percent of 15 is 9,
-        which is a size you can measure but not read, and a supporting line
-        nobody can read is worse than no supporting line.
-
-        It also went from 60 percent white to 75. The old scrim was nearly
-        black under the type, which 60 percent could afford; the glass is not,
-        and the same grey that reads as restraint on black reads as a rendering
-        fault on it.
-      */}
-      <div className="relative flex flex-col items-center text-center">
+      <div className="relative max-w-sm rounded-3xl border border-white/10 bg-black/55 p-8 backdrop-blur-2xl">
+        {/*
+          Left aligned, as it was before the centring, and 15 percent larger
+          than the pass that followed it. The mark goes 53 to 61, the headline
+          25 to 29, the paragraph 13 to 15, and the gaps between them move with
+          the type so the block scales rather than loosens.
+        */}
         <Image
           src="/kora-mark-white.png"
           alt="KORA"
           width={718}
           height={679}
           priority
-          className="h-[53px]"
+          className="h-[61px]"
           style={{ width: 'auto' }}
         />
-        <h2 className="mt-5 text-[25px] font-semibold leading-[1.1] tracking-[-0.03em] text-white">
-          The African
+        <h2 className="mt-6 text-[29px] font-semibold leading-[1.1] tracking-[-0.03em] text-white">
+          We move money
           <br />
-          corridor for Pollar.
+          out of Africa.
         </h2>
-        <p className="mt-3 max-w-xs text-[13px] leading-relaxed text-white/75">
-          Pollar ramps into Brazil, Colombia, Mexico and Bolivia. KORA is the leg it does not
-          have yet.
+        <p className="mt-3.5 text-[15px] leading-relaxed text-white/75">
+          KORA is the African leg of the corridor. Type what you want to send, we price it
+          live, and it settles on Stellar for Pollar to pay out.
         </p>
       </div>
     </aside>
