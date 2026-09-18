@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** U, the front door
-**Commits:** 144
+**Commits:** 146
 
 ---
 
@@ -176,6 +176,10 @@ Still outstanding, and both small:
 | 2026-09-18 | Panel contrast after the fix | Frame sampling across the clip | 10 frames | 5.0 to 10.0, worst 5.03, passes |
 | 2026-09-18 | Glass compositing cost | rAF timing over playing video | 120 frames | 61fps, worst frame 17.2ms |
 | 2026-09-18 | Sign in layout after the restyle | Browser measurement, 1440 and pane width | Overflow | None |
+| 2026-09-18 | Card contrast across the clip | Frame sampling behind the paragraph | 10 frames | 6.09 to 9.14, worst 6.09, passes |
+| 2026-09-18 | Card compositing cost | rAF timing over playing video | 120 frames | 60.3fps, worst frame 17.1ms |
+| 2026-09-18 | Card fit at the lg breakpoint | Browser measurement, 1024 | Overflow | None, 384 card in a 416 content box |
+| 2026-09-18 | Card fit at 1280 | Browser measurement | Overflow | None, 208 of clearance |
 | 2026-09-18 | Smoke after dashboard | `npm run smoke` | 34 checks | All passed, no regression |
 | 2026-09-18 | Typecheck during overview cleanup | `npx tsc --noEmit` | Whole project | Clean, run 5 times |
 | 2026-09-18 | Smoke after overview cleanup | `npm run smoke` | 34 checks | All passed, no regression |
@@ -870,6 +874,38 @@ from 60 to 75 percent white, the same ten frames read 5.0 to 10.0.
 Re-measured live after the change: 5.03 at the brightest frame. Also checked what the glass
 costs, since backdrop-filter recomposites over every video frame: 61fps, worst frame 17.2ms,
 which is one frame at 60Hz and no dropped frames across the 120 sampled.
+
+### Phase U3, the glass became a card and the copy became ours
+
+Requested: blur only what the words stand on rather than the whole panel, put the left
+alignment back, add 15 percent to the sizes, and rewrite the copy, which read as written by
+a machine and was about Pollar rather than about us.
+
+**The full bleed blur was the wrong instrument.** Softening the entire left half throws away
+the footage it was there to show, since a blurred room is a grey field with a lamp in it.
+The pane is now the size of the words. backdrop-filter clips to its element, so the rounded
+corners cut the blur along with the tint and the result reads as a physical pane rather than
+a rectangle of fog.
+
+It also measures better. The card sits over a part of the frame that stays darker than the
+panel average, so the paragraph reads 6.09 at the brightest frame against 5.03 for the full
+bleed version, and 60.3fps with a smaller area to recomposite.
+
+The border is not decoration. Against the dark half of the clip the card and the footage sit
+close enough in value that the pane has no visible edge without it.
+
+**Sizes went up 15 percent**, mark 53 to 61, headline 25 to 29, paragraph 13 to 15, with the
+gaps moving with the type so the block scales rather than loosens. Net against the original
+panel: 70 percent of where it started rather than 60.
+
+**The copy.** What was there described Pollar's coverage and then named KORA as the gap in
+it, which is an accurate framing of the thesis and a strange thing to say on your own front
+door. It now says what we do in the order somebody would say it out loud: we move money out
+of Africa, you type what you want to send, we price it live, it settles on Stellar for
+Pollar to pay out. Every clause is something the app does, checked against the README's own
+real and not real table rather than written to sound good. The fiat leg is deliberately not
+mentioned, because on testnet it is simulated and a brand panel is exactly the wrong place
+to be imprecise about that.
 
 ---
 
