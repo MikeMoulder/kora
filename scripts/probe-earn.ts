@@ -33,6 +33,14 @@
  *                          here it is absent.
  */
 
+/*
+ * This file has no imports, which without the following line makes it a global
+ * script rather than a module. Its `main` then lands in the global scope and
+ * collides with `scripts/e2e.ts`, which declares one too, and `tsc` reports the
+ * duplicate against e2e rather than against the file that caused it.
+ */
+export {};
+
 const SDK_BASE = process.env.POLLAR_SDK_API_URL ?? 'https://sdk.api.pollar.xyz/v1';
 
 /**
