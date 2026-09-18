@@ -64,6 +64,43 @@ export function useRates() {
   return rates;
 }
 
+// ── Balance ───────────────────────────────────────────────────────────────
+
+export interface BalancePayload {
+  /** Sample data. Labelled as such wherever it is shown. */
+  opening: number;
+  /** Everything real that has happened since. */
+  movements: number;
+  balance: number;
+  currency: string;
+}
+
+/**
+ * The live balance.
+ *
+ * Returns a `refresh` because a deposit changes the number while the page is
+ * open, and a balance that only updates on reload would have the account
+ * holder wondering whether their money arrived.
+ */
+export function useBalance() {
+  const [balance, setBalance] = useState<BalancePayload | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      const body = await fetch('/api/account/balance', { cache: 'no-store' }).then((r) => r.json());
+      if (body?.ok) setBalance(body.data as BalancePayload);
+    } catch {
+      // The card falls back to the opening figure, which is still true.
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { balance, refresh };
+}
+
 /**
  * Both panels end at the same place: a sentence handed to the real corridor
  * engine. The manual keypad composes that sentence from fields, the agent
@@ -76,7 +113,13 @@ function intentHref(text: string) {
 
 // ── Send ──────────────────────────────────────────────────────────────────
 
-export function SendPanel({ rates }: { rates: RatesPayload | null }) {
+export function SendPanel({
+  rates,
+  balance,
+}: {
+  rates: RatesPayload | null;
+  balance: BalancePayload | null;
+}) {
   const router = useRouter();
   const [beneficiary, setBeneficiary] = useState<Beneficiary>(BENEFICIARIES[0]);
   const [digits, setDigits] = useState('100000');
@@ -146,7 +189,7 @@ export function SendPanel({ rates }: { rates: RatesPayload | null }) {
           &#8358;{amount.toLocaleString()}
         </div>
         <div className="mt-2 text-xs text-ink-faint">
-          Balance {formatNaira(ACCOUNT.balance)}
+          Balance {formatNaira(balance?.balance ?? ACCOUNT.balance)}
         </div>
       </div>
 
@@ -167,7 +210,7 @@ export function SendPanel({ rates }: { rates: RatesPayload | null }) {
           )}
         </Line>
         <Line label="Balance after">
-          {formatNaira(ACCOUNT.balance - amount)}
+          {formatNaira((balance?.balance ?? ACCOUNT.balance) - amount)}
         </Line>
         <Line label="Transaction fee">Quoted on the next screen</Line>
       </dl>
@@ -633,7 +676,7 @@ interface ReceivingAccount {
   note: string | null;
 }
 
-export function ReceivePanel() {
+export function ReceivePanel({ onCredited }: { onCredited?: () => void }) {
   const [account, setAccount] = useState<ReceivingAccount | null>(null);
   const [failed, setFailed] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
@@ -758,8 +801,175 @@ export function ReceivePanel() {
           )}
 
           <Provenance account={account} />
+
+          {account.provider === 'flutterwave' && (
+            <Deposit mode={account.mode} onCredited={onCredited} />
+          )}
         </>
       )}
+    </div>
+  );
+}
+
+// ── Deposit ───────────────────────────────────────────────────────────────
+
+type DepositStage = 'idle' | 'opening' | 'waiting' | 'credited' | 'error';
+
+interface OpenedDeposit {
+  reference: string;
+  accountNumber: string;
+  bankName: string;
+  transferAmount: string;
+  selfSettling: boolean;
+}
+
+/**
+ * Put money into the account.
+ *
+ * The permanent account above is the right thing to hand a payer and the
+ * wrong thing to test with: nothing in the sandbox ever pays into a static
+ * account, so it waits forever and no webhook fires. This opens a bank
+ * transfer charge instead, which names an amount, and which Flutterwave's
+ * test mode pays itself within seconds.
+ *
+ * So the balance moves because money actually arrived against a reference
+ * Flutterwave confirms, not because a number was incremented. In production
+ * the same button shows an account for a human to pay, and the webhook does
+ * what the polling does here.
+ */
+function Deposit({ mode, onCredited }: { mode: string; onCredited?: () => void }) {
+  const [digits, setDigits] = useState('50000');
+  const [stage, setStage] = useState<DepositStage>('idle');
+  const [opened, setOpened] = useState<OpenedDeposit | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const cancelled = useRef(false);
+
+  /*
+   * Reset on mount, not just set on unmount.
+   *
+   * Strict Mode runs effects mount, cleanup, mount in development. A cleanup
+   * that only ever sets this true leaves it true for the life of the
+   * component, and every guard below then bails silently: the deposit opens,
+   * Flutterwave settles it, and the button sits on "Opening" forever.
+   */
+  useEffect(() => {
+    cancelled.current = false;
+    return () => {
+      cancelled.current = true;
+    };
+  }, []);
+
+  const amount = Number(digits || '0');
+
+  const start = useCallback(async () => {
+    setStage('opening');
+    setError(null);
+    setOpened(null);
+
+    try {
+      const body = await fetch('/api/account/deposit', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ amount }),
+      }).then((r) => r.json());
+
+      if (!body.ok) throw new Error(body.error ?? 'Could not open the deposit.');
+
+      const deposit = body.data as OpenedDeposit;
+      if (cancelled.current) return;
+
+      setOpened(deposit);
+      setStage('waiting');
+
+      /*
+       * Poll rather than wait on the webhook. Localhost has no public URL for
+       * Flutterwave to reach, and a delivery it decides to retry in thirty
+       * minutes is no good to somebody watching the screen. Both paths credit
+       * the same ledger entry, keyed on the reference, so whichever arrives
+       * first wins and the other is a no-op.
+       */
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+        if (cancelled.current) return;
+
+        const status = await fetch(`/api/account/deposit/${deposit.reference}`, {
+          cache: 'no-store',
+        }).then((r) => r.json());
+
+        if (status?.ok && status.data.status === 'successful') {
+          if (cancelled.current) return;
+          setStage('credited');
+          onCredited?.();
+          return;
+        }
+      }
+
+      if (!cancelled.current) {
+        setStage('error');
+        setError('Flutterwave has not confirmed it yet. It may still land.');
+      }
+    } catch (err) {
+      if (cancelled.current) return;
+      setStage('error');
+      setError(err instanceof Error ? err.message : 'Could not open the deposit.');
+    }
+  }, [amount, onCredited]);
+
+  const busy = stage === 'opening' || stage === 'waiting';
+
+  return (
+    <div className="mt-5 border-t border-rule pt-4">
+      <div className="text-[10px] uppercase tracking-[0.12em] text-ink-faint">Add money</div>
+
+      <div className="mt-2 flex items-center gap-2">
+        <div className="flex h-10 min-w-0 flex-1 items-center gap-1.5 rounded-lg border border-rule bg-paper-sunk px-3 focus-within:border-ink focus-within:bg-paper">
+          <span className="text-sm font-semibold">&#8358;</span>
+          <input
+            value={amount.toLocaleString()}
+            onChange={(e) => setDigits(e.target.value.replace(/[^0-9]/g, '').slice(0, 9))}
+            inputMode="numeric"
+            aria-label="Amount to deposit"
+            disabled={busy}
+            className="tabular w-full bg-transparent text-sm font-medium outline-none disabled:opacity-60"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={start}
+          disabled={busy || amount < 100}
+          className="flex h-10 shrink-0 items-center gap-2 rounded-lg bg-ink px-4 text-[13px] font-medium text-paper transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
+        >
+          {busy && <Spinner />}
+          {stage === 'opening' ? 'Opening' : stage === 'waiting' ? 'Waiting' : 'Deposit'}
+        </button>
+      </div>
+
+      {opened && stage === 'waiting' && (
+        <p className="mt-2.5 text-[10px] leading-relaxed text-ink-faint">
+          Opened {opened.reference}. Pay {opened.transferAmount} into {opened.accountNumber} at{' '}
+          {opened.bankName}.
+          {opened.selfSettling && ' Test mode settles this itself, so just wait.'}
+        </p>
+      )}
+
+      {stage === 'credited' && (
+        <p className="mt-2.5 text-[11px] font-medium text-gain">
+          Credited. The balance above has moved.
+        </p>
+      )}
+
+      {stage === 'error' && error && (
+        <p className="mt-2.5 rounded-lg border border-ink px-3 py-2 text-[11px] leading-relaxed">
+          {error}
+        </p>
+      )}
+
+      <p className="mt-2 text-[10px] leading-relaxed text-ink-ghost">
+        {mode === 'test'
+          ? 'Opens a real Flutterwave charge. Test mode pays it, so no money moves.'
+          : 'Opens a real Flutterwave charge against live keys.'}
+      </p>
     </div>
   );
 }
@@ -791,7 +1001,9 @@ function Provenance({ account }: { account: ReceivingAccount }) {
         {account.testIdentity
           ? 'A real Flutterwave account, opened against a placeholder BVN because KORA has no KYC step yet. In production that number comes from the account holder.'
           : 'Opened against the account holder’s verified identity.'}{' '}
-        Deposits into it do not move the balance above, which is still sample data.
+        {account.mode === 'test'
+          ? 'Nothing in the sandbox ever pays into a static account, so use Add money below to put funds in.'
+          : 'A transfer into it credits the balance above once Flutterwave confirms it.'}
       </p>
     </div>
   );

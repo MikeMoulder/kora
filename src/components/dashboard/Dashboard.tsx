@@ -11,7 +11,9 @@ import {
   BeneficiaryPanel,
   ReceivePanel,
   SendPanel,
+  useBalance,
   useRates,
+  type BalancePayload,
   type RatesPayload,
 } from './panels';
 import { CardLabel, DirectionMark, IconButton, Monogram } from './parts';
@@ -41,6 +43,7 @@ import {
 export function Dashboard() {
   const [panel, setPanel] = useState<PanelMode | null>(null);
   const rates = useRates();
+  const { balance, refresh } = useBalance();
 
   const open = (next: PanelMode | null) => setPanel(next);
 
@@ -78,6 +81,7 @@ export function Dashboard() {
                 <div className="min-w-0 space-y-4">
                   <BalanceCard
                     rates={rates}
+                    balance={balance}
                     onPay={() => open('send')}
                     onReceive={() => open('receive')}
                   />
@@ -92,10 +96,10 @@ export function Dashboard() {
 
             {panel !== null && (
               <PanelFrame title={PANEL_TITLES[panel]} onClose={() => open(null)}>
-                {panel === 'send' && <SendPanel rates={rates} />}
+                {panel === 'send' && <SendPanel rates={rates} balance={balance} />}
                 {panel === 'agent' && <AgentPanel />}
                 {panel === 'beneficiaries' && <BeneficiaryPanel />}
-                {panel === 'receive' && <ReceivePanel />}
+                {panel === 'receive' && <ReceivePanel onCredited={refresh} />}
               </PanelFrame>
             )}
           </div>
@@ -205,10 +209,12 @@ function PanelTriggers({ onSelect }: { onSelect: (panel: PanelMode) => void }) {
 
 function BalanceCard({
   rates,
+  balance,
   onPay,
   onReceive,
 }: {
   rates: RatesPayload | null;
+  balance: BalancePayload | null;
   onPay: () => void;
   onReceive: () => void;
 }) {
@@ -244,10 +250,16 @@ function BalanceCard({
       </div>
 
       <div className="tabular mt-5 truncate text-[30px] font-semibold leading-none tracking-[-0.035em] sm:text-[36px]">
-        {hidden ? '••••••••' : formatNaira(ACCOUNT.balance)}
+        {hidden ? '••••••••' : formatNaira(balance?.balance ?? ACCOUNT.balance)}
       </div>
       <div className="tabular mt-2 truncate text-sm text-ink/60">
-        {hidden ? '•••••' : `${formatNaira(ACCOUNT.delta, { signed: true })} this month`}
+        {hidden
+          ? '•••••'
+          : balance && balance.movements !== 0
+            ? // Once something real has landed, say so rather than leaving the
+              // sample monthly figure to take the credit for it.
+              `${formatNaira(balance.movements, { signed: true })} since you opened this`
+            : `${formatNaira(ACCOUNT.delta, { signed: true })} this month`}
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-1 border-t border-ink/15 pt-4">
