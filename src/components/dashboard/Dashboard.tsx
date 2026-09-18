@@ -94,28 +94,36 @@ export function Dashboard() {
             <main className="min-w-0 flex-1 space-y-4 px-5 pb-8 sm:px-7">
               {panel === null && <PanelTriggers onSelect={open} />}
 
+              {/*
+                * Two rows rather than two columns.
+                *
+                * What you have and who you paid sit side by side, because they
+                * answer each other: the balance is the figure, the list is
+                * where it went. Spend runs underneath across the whole width,
+                * because a year of columns is a shape and a shape needs
+                * length. It spent a while in the left column at a third of
+                * this width, which is what made a dot matrix of a year look
+                * like a barcode.
+                */}
               <div
                 className={cn(
                   'grid gap-4',
                   panel === null
-                    ? 'lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]'
+                    ? 'lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]'
                     : 'lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]',
                 )}
               >
-                <div className="min-w-0 space-y-4">
-                  <BalanceCard
-                    rates={rates}
-                    balance={balance}
-                    onPay={() => open('send')}
-                    onReceive={() => open('receive')}
-                  />
-                  <SpendChart activity={activity} />
-                </div>
+                <BalanceCard
+                  rates={rates}
+                  balance={balance}
+                  onPay={() => open('send')}
+                  onReceive={() => open('receive')}
+                />
 
-                <div className="min-w-0">
-                  <Transactions activity={activity} />
-                </div>
+                <Transactions activity={activity} />
               </div>
+
+              <SpendChart activity={activity} />
             </main>
 
             {panel !== null && (
@@ -265,14 +273,14 @@ function BalanceCard({
   const [hidden, setHidden] = useState(false);
 
   return (
-    <div className="card-block min-w-0 overflow-hidden rounded-[22px] bg-paper p-1.5">
+    <div className="card-block flex min-w-0 flex-col overflow-hidden rounded-[22px] bg-paper p-1.5">
       {/*
         * Concentric with the card around it: 22px outer radius less the 6px of
         * padding is 16px inner. Anything else leaves the gap between the two
         * curves widening through the corner, which is the thing that makes a
         * card-inside-a-card look glued together rather than nested.
         */}
-      <div className="relative rounded-[16px] bg-accent px-5 pb-6 pt-5 text-center text-ink">
+      <div className="relative flex flex-1 flex-col justify-center rounded-[16px] bg-accent px-5 pb-6 pt-5 text-center text-ink">
         <button
           type="button"
           onClick={() => setHidden((v) => !v)}
@@ -440,7 +448,7 @@ function Transactions({ activity }: { activity: ActivityPayload | null }) {
   const rows = activity?.transactions ?? null;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-w-0 flex-col">
       <div className="px-1">
         <CardLabel
           action={
