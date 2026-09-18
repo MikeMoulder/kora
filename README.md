@@ -11,8 +11,8 @@ Stellar inside a Pollar wallet belonging to somebody in Bolivia.**
 ![The KORA dashboard, live in production](assets/screenshots/dashboard.png)
 
 Built for the **Pollar Hackathon**, against the flagship challenge: build the African leg of
-an Africa to Latin America corridor and connect it to Pollar. 170 commits. 107 automated
-checks. Four real Stellar transactions a judge can open in a block explorer right now,
+an Africa to Latin America corridor and connect it to Pollar. More than 170 commits.
+107 automated checks. Four real Stellar transactions a judge can open in a block explorer right now,
 including one that a timer on a rented Linux server sent by itself.
 
 ---
