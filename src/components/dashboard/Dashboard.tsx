@@ -6,7 +6,14 @@ import { ArrowDownLeft, ArrowUpRight, Bell, Eye, EyeOff, Repeat, X } from 'lucid
 import { cn } from '@/lib/utils';
 import { Sidebar, PANEL_TITLES, type PanelMode } from './Sidebar';
 import { SpendChart } from './SpendChart';
-import { AgentPanel, BeneficiaryPanel, SendPanel, useRates, type RatesPayload } from './panels';
+import {
+  AgentPanel,
+  BeneficiaryPanel,
+  ReceivePanel,
+  SendPanel,
+  useRates,
+  type RatesPayload,
+} from './panels';
 import { CardLabel, DirectionMark, IconButton, Monogram } from './parts';
 import { Flag } from '../Flag';
 import {
@@ -58,7 +65,11 @@ export function Dashboard() {
                 )}
               >
                 <div className="min-w-0 space-y-4">
-                  <BalanceCard rates={rates} onPay={() => setPanel('send')} />
+                  <BalanceCard
+                    rates={rates}
+                    onPay={() => setPanel('send')}
+                    onReceive={() => setPanel('receive')}
+                  />
                   <CurrencyStrip rates={rates} />
                 </div>
 
@@ -75,6 +86,7 @@ export function Dashboard() {
                 {panel === 'send' && <SendPanel rates={rates} />}
                 {panel === 'agent' && <AgentPanel />}
                 {panel === 'beneficiaries' && <BeneficiaryPanel />}
+                {panel === 'receive' && <ReceivePanel />}
               </PanelFrame>
             )}
           </div>
@@ -185,9 +197,11 @@ function PanelTriggers({ onSelect }: { onSelect: (panel: PanelMode) => void }) {
 function BalanceCard({
   rates,
   onPay,
+  onReceive,
 }: {
   rates: RatesPayload | null;
   onPay: () => void;
+  onReceive: () => void;
 }) {
   const [hidden, setHidden] = useState(false);
 
@@ -234,7 +248,11 @@ function BalanceCard({
           onClick={onPay}
         />
         <Action icon={<Repeat className="h-4 w-4" strokeWidth={1.8} />} label="Convert" />
-        <Action icon={<ArrowDownLeft className="h-4 w-4" strokeWidth={1.8} />} label="Receive" />
+        <Action
+          icon={<ArrowDownLeft className="h-4 w-4" strokeWidth={1.8} />}
+          label="Receive"
+          onClick={onReceive}
+        />
       </div>
     </div>
   );

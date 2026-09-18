@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Delete, Search, Sparkles, Star } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { ArrowDownLeft, ArrowRight, Check, Copy, Delete, Search, Sparkles, Star } from 'lucide-react';
+import { cn, copyText } from '@/lib/utils';
 import { Monogram } from './parts';
 import { Flag } from '../Flag';
 import { Spinner } from '../ui/primitives';
@@ -604,6 +604,162 @@ function BeneficiaryPicker({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ── Receive ───────────────────────────────────────────────────────────────
+
+/**
+ * Receive.
+ *
+ * Three fields and a way to copy them, which is the whole of a Nigerian
+ * inbound transfer: a payer opens their bank app, types a bank, a NUBAN and
+ * checks the name that comes back. Anything else on this panel would be
+ * decoration.
+ *
+ * Deliberately no QR. Nigeria has no scannable standard behind NIP the way
+ * Kenya has USSD behind M-Pesa, so a code here would be a picture of a
+ * payment method that does not exist. The M-Pesa corridor emits a real
+ * scannable because there is a real thing to scan.
+ */
+export function ReceivePanel() {
+  const { receiving } = ACCOUNT;
+  const [copied, setCopied] = useState<string | null>(null);
+  const [refused, setRefused] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+
+  const copy = useCallback(async (key: string, value: string) => {
+    const ok = await copyText(value);
+
+    // A browser that refuses the clipboard has to say so. Flashing a tick on a
+    // copy that never happened sends someone to their bank app to paste an
+    // account number they do not have.
+    setRefused(!ok);
+    setCopied(ok ? key : null);
+
+    if (timer.current) clearTimeout(timer.current);
+    if (ok) timer.current = setTimeout(() => setCopied(null), 1600);
+  }, []);
+
+  const full = `${receiving.accountName}\n${receiving.bankName}\n${receiving.accountNumber}`;
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink text-paper">
+          <ArrowDownLeft className="h-4 w-4" strokeWidth={1.8} />
+        </span>
+        <div>
+          <div className="text-sm font-semibold">Your naira account</div>
+          <div className="flex items-center gap-1.5 text-[11px] text-ink-faint">
+            <Flag code={ACCOUNT.country} size={11} />
+            {receiving.rail}
+          </div>
+        </div>
+      </div>
+
+      <dl className="mt-5 divide-y divide-rule rounded-xl border border-rule">
+        <CopyRow
+          label="Account number"
+          value={receiving.accountNumber}
+          mono
+          copied={copied === 'number'}
+          onCopy={() => copy('number', receiving.accountNumber)}
+        />
+        <CopyRow
+          label="Bank"
+          value={receiving.bankName}
+          copied={copied === 'bank'}
+          onCopy={() => copy('bank', receiving.bankName)}
+        />
+        <CopyRow
+          label="Account name"
+          value={receiving.accountName}
+          copied={copied === 'name'}
+          onCopy={() => copy('name', receiving.accountName)}
+        />
+      </dl>
+
+      <button
+        type="button"
+        onClick={() => copy('all', full)}
+        className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper transition-colors hover:bg-ink-soft"
+      >
+        {copied === 'all' ? (
+          <Check className="h-4 w-4" strokeWidth={2} />
+        ) : (
+          <Copy className="h-4 w-4" strokeWidth={1.8} />
+        )}
+        {copied === 'all' ? 'Copied' : 'Copy all three'}
+      </button>
+
+      {refused && (
+        <p className="mt-3 rounded-lg border border-ink px-3 py-2.5 text-[11px] leading-relaxed">
+          This browser refused the clipboard. Select the number above and copy it by hand.
+        </p>
+      )}
+
+      <p className="mt-3 text-[10px] leading-relaxed text-ink-faint">
+        A sample account, so nothing can actually land in it. The naira rail KORA does run
+        is the one Send funds through, and it issues its own collections account when you
+        reach a quote.
+      </p>
+    </div>
+  );
+}
+
+function CopyRow({
+  label,
+  value,
+  mono,
+  copied,
+  onCopy,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+      <div className="min-w-0">
+        <dt className="text-[10px] uppercase tracking-[0.06em] text-ink-faint">{label}</dt>
+        <dd
+          className={cn(
+            'truncate text-sm',
+            mono && 'tabular text-[15px] font-semibold tracking-[0.04em]',
+          )}
+        >
+          {value}
+        </dd>
+      </div>
+
+      <button
+        type="button"
+        onClick={onCopy}
+        aria-label={'Copy ' + label.toLowerCase()}
+        className={cn(
+          'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors',
+          copied
+            ? 'border-gain text-gain'
+            : 'border-rule text-ink-faint hover:border-ink hover:text-ink',
+        )}
+      >
+        {copied ? (
+          <Check className="h-3.5 w-3.5" strokeWidth={2} />
+        ) : (
+          <Copy className="h-3.5 w-3.5" strokeWidth={1.8} />
+        )}
+      </button>
     </div>
   );
 }

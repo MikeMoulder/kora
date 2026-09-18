@@ -12,6 +12,22 @@
  * for a demo than one that does not.
  */
 
+/**
+ * Where an inbound naira payment would land.
+ *
+ * Shaped like a real NIP destination, which is three fields and nothing else:
+ * a payer needs the bank, the ten digit NUBAN and the name to check it against
+ * before they confirm. The number is in the 0112xxxxxx demo range and belongs
+ * to nobody.
+ */
+export interface DemoReceivingAccount {
+  bankName: string;
+  /** NUBAN, ten digits. */
+  accountNumber: string;
+  accountName: string;
+  rail: string;
+}
+
 export interface DemoAccount {
   firstName: string;
   fullName: string;
@@ -21,6 +37,7 @@ export interface DemoAccount {
   /** Change over the period shown, major units. */
   delta: number;
   country: string;
+  receiving: DemoReceivingAccount;
 }
 
 export const ACCOUNT: DemoAccount = {
@@ -30,6 +47,12 @@ export const ACCOUNT: DemoAccount = {
   balance: 4_820_650.0,
   delta: 182_400.0,
   country: 'NG',
+  receiving: {
+    bankName: 'Sterling Bank',
+    accountNumber: '0112436789',
+    accountName: 'Adaeze Okafor',
+    rail: 'NIP instant transfer',
+  },
 };
 
 // ── Beneficiaries ─────────────────────────────────────────────────────────

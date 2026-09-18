@@ -18,14 +18,19 @@ import { ACCOUNT } from '@/lib/demo-data';
  * replacing the page, because none of them make sense without the balance in
  * view: you want to see what you are spending from while you compose a send,
  * and Kora Agent is reading a sentence about that same money.
+ *
+ * Not every panel earns a rail slot. The ones the balance card opens are
+ * reached from the money they act on, which is a better place for them than a
+ * column of icons that would then need eight.
  */
 
-export type PanelMode = 'send' | 'agent' | 'beneficiaries';
+export type PanelMode = 'send' | 'agent' | 'beneficiaries' | 'receive';
 
 export const PANEL_TITLES: Record<PanelMode, string> = {
   send: 'Send money',
   agent: 'Kora Agent',
   beneficiaries: 'Beneficiaries',
+  receive: 'Receive',
 };
 
 interface RailItem {
