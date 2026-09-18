@@ -5,13 +5,27 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 76
+**Commits:** 83
 
 ---
 
 ## Next task
 
-**Sign in to Pollar on the hand-off screen and finish the transfer.**
+**Two things, both waiting on a person rather than on code.**
+
+**1. Paste the Flutterwave test keys into `.env.local`.** The corridor is wired and falls
+back to the fixed sandbox account until they land. Get them at flutterwave.com, Settings
+then API Keys under DEVELOPERS. Set `FLW_SECRET_KEY` and `NEXT_PUBLIC_FLW_PUBLIC_KEY`.
+
+Then, on the Flutterwave dashboard under Settings then Webhooks, set the URL to
+`<deployed-url>/api/funding/flutterwave/webhook` and paste the secret hash already sitting
+in `.env.local` as `FLW_SECRET_HASH`. The two values must match or every delivery is
+refused, which is the intended behaviour.
+
+Flutterwave pays its own test transfers after a few seconds, so once the keys are in, the
+Nigerian leg settles for real with nobody sending money.
+
+**2. Sign in to Pollar on the hand-off screen and finish the transfer.**
 
 This is the flagship requirement and it is now one click from done. The African leg runs
 end to end: intent parsed, corridor resolved, quote priced from the live rate, funding
@@ -167,6 +181,17 @@ provider logs a 403 in the console.
 | 2026-09-18 | Console across a clean reload | Browser | Error count | 50 before, 50 after, no new errors |
 | 2026-09-18 | Readiness probe | `/api/pollar/status?deep=1` | 3 checks | All pass |
 | 2026-09-18 | Corridor walkthrough after unblock | Browser, intent to hand-off | 1 full run | Settled, hand-off screen reached |
+| 2026-09-18 | Smoke after the region trim | `npm run smoke` | 34 checks | All passed |
+| 2026-09-18 | Typecheck across the region trim | `npx tsc --noEmit` | Whole project | Clean, run 6 times |
+| 2026-09-18 | Rate feed after the trim | `curl /api/rates` | 1 | Peg and 3 payouts, no cross rates |
+| 2026-09-18 | Dashboard after both removals | Browser | Layout, balance | Two columns, no dead space |
+| 2026-09-18 | Smoke after the Flutterwave rewire | `npm run smoke` | 34 checks | All passed, no regression |
+| 2026-09-18 | Corridor fallback with no FLW key | Browser, intent to funding | 1 full run | Fixed account, operator step shown |
+| 2026-09-18 | Webhook, no secret configured | `curl` | 1 | 401, refuses rather than accepting |
+| 2026-09-18 | Webhook, wrong `verif-hash` | `curl` | 1 | 401 bad signature |
+| 2026-09-18 | Webhook, right hash, unknown ref | `curl` | 1 | 200, no retry storm |
+| 2026-09-18 | Webhook, right hash, wrong event | `curl` | 1 | 200 ignored |
+| 2026-09-18 | Webhook, right hash, real ref, issuer unreachable | `curl` then status read | 1 | Did not credit, stayed awaiting_payment |
 
 **Total automated checks passing: 34.**
 
@@ -312,6 +337,36 @@ method that does not exist.
 
 Copying goes through `copyText` in `src/lib/utils.ts`, which falls back to `execCommand`
 when the async clipboard is refused and reports whether the text landed.
+
+### Phase O, one region and a real collections partner
+
+The account became Nigeria only. The African currency strip and the Convert panel both
+went, because quoting the naira against the cedi, the shilling and the rand implied a
+multi currency balance that does not exist, and what the naira becomes is already answered
+by the quote in Send against the real corridor. The cross rates came out of the rate feed
+with them, so nothing serves a claim the product no longer makes. The balance card is Pay
+and Receive, and the spend chart moved under it to close the gap.
+
+Then the Nigerian leg stopped simulating the part that mattered. The NIP adapter always
+described the right shape and its own readiness note named the missing piece: a licensed
+collections partner issuing virtual accounts. Flutterwave is that partner, and its test
+environment issues real ones.
+
+With a key configured, the corridor asks Flutterwave for a fresh virtual account per
+payment, using the reference the user already quotes as the charge `tx_ref`. Attribution
+becomes the account rather than a human reading a narration off a statement. The expiry is
+Flutterwave's and it enforces it. The amount shown is Flutterwave's `transfer_amount`
+rather than our quote, because it adds its fee on top and printing our figure produces a
+transfer that never reconciles. `requiresOperatorConfirmation` goes false, because
+confirmation is a verification call now.
+
+Without a key, or when a charge fails, it falls back to the fixed sandbox account and says
+so in the readiness note and in the timeline. The corridor never silently degrades.
+
+The webhook follows three rules in order: authenticate, never trust the body, check the
+money. The middle one is the one worth keeping. A correctly signed `charge.completed` on a
+real funding reference was probed against a server that could not reach Flutterwave, and
+it did not credit: the reference stayed at `awaiting_payment` with no USDC released.
 
 ### Other
 
