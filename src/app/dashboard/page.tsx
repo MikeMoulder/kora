@@ -1,0 +1,11 @@
+import type { Metadata } from 'next';
+import { Dashboard } from '@/components/dashboard/Dashboard';
+
+export const metadata: Metadata = {
+  title: 'Dashboard | KORA',
+  description: 'Balance, rates, activity and the corridor engine behind them.',
+};
+
+export default function Page() {
+  return <Dashboard />;
+}

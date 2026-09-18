@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { signInDemo, DEMO_CREDENTIALS } from '@/lib/demo-auth';
 
@@ -21,6 +20,11 @@ import { signInDemo, DEMO_CREDENTIALS } from '@/lib/demo-auth';
  * Authentication: there is none, by request. `signInDemo` accepts anything
  * shaped like a credential and writes a session flag. The panel says so in
  * plain words rather than implying a real account exists.
+ *
+ * This is the root route. Every link that used to point back at a landing page
+ * has gone, because there is nothing behind this screen to go back to: the
+ * dashboard is forward from here, and `src/proxy.ts` sends anybody who asks
+ * for it without a session straight back to this form.
  */
 
 /** Left panel footage. Swap this path to change the artwork. */
@@ -48,7 +52,7 @@ export function SignInPage() {
     setError(null);
     setSubmitting(true);
 
-    const outcome = await signInDemo(form.email, form.password);
+    const outcome = await signInDemo(form.email, form.password, form.rememberMe);
 
     if (!outcome.ok) {
       setError(outcome.reason);
@@ -56,7 +60,20 @@ export function SignInPage() {
       return;
     }
 
-    router.push('/');
+    /*
+     * `replace` rather than `push`, and `refresh` after it.
+     *
+     * Replace, because leaving sign in on the history stack means Back lands
+     * on a form the proxy immediately bounces forward again, which reads as a
+     * broken Back button.
+     *
+     * Refresh, because the session is a cookie the proxy reads on the server.
+     * A client navigation can be served from the router cache without the
+     * server seeing the new cookie at all, and the dashboard then renders for
+     * somebody the server still considers signed out.
+     */
+    router.replace('/dashboard');
+    router.refresh();
   }
 
   return (
@@ -72,13 +89,7 @@ export function SignInPage() {
               Welcome back
             </h1>
             <p className="mt-3 text-sm text-neutral-500">
-              Don&rsquo;t have an account?{' '}
-              <Link
-                href="/signin"
-                className="font-medium text-neutral-950 underline decoration-neutral-300 underline-offset-4 transition-colors hover:decoration-neutral-950"
-              >
-                Request access
-              </Link>
+              Sign in to reach the corridor console.
             </p>
           </header>
 
@@ -260,7 +271,7 @@ function BrandPanel() {
   }, []);
 
   return (
-    <aside className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-black p-12 lg:flex">
+    <aside className="relative hidden w-1/2 flex-col justify-end overflow-hidden bg-black p-12 lg:flex">
       <video
         ref={videoRef}
         src={PANEL_VIDEO}
@@ -288,16 +299,12 @@ function BrandPanel() {
         aria-hidden
       />
 
-      <div className="relative flex items-start justify-between">
-        <Link
-          href="/"
-          aria-label="Back to KORA"
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/20 text-white/80 backdrop-blur-sm transition-colors hover:border-white/50 hover:text-white"
-        >
-          <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
-        </Link>
-      </div>
-
+      {/*
+        No back button. It used to point at /, which is now this page, so it
+        was a control that reloaded the screen it was drawn on. The panel is
+        anchored to the bottom instead of being spread against a top row that
+        no longer has anything in it.
+      */}
       <div className="relative">
         <Image
           src="/kora-mark-white.png"

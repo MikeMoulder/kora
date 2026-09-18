@@ -1,6 +1,18 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  /*
+   * Sign in used to live at /signin and is now the root route.
+   *
+   * Anything already pointing at the old path, a bookmark or a line in a demo
+   * script, would otherwise hit a 404 in front of an audience. Temporary
+   * rather than permanent on purpose: a 308 is cached by the browser forever
+   * and this is a week old project whose routes may still move.
+   */
+  redirects() {
+    return Promise.resolve([{ source: '/signin', destination: '/', permanent: false }]);
+  },
+
   images: {
     /*
      * AVIF first, WebP behind it.
