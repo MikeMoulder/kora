@@ -15,6 +15,8 @@
  * minutes when it does not get a 200, and a retry must not credit twice.
  */
 
+import { hasRedis, redisLedger } from '@/lib/store/redis';
+
 export type LedgerDirection = 'credit' | 'debit';
 
 export interface LedgerEntry {
@@ -63,7 +65,15 @@ export const memoryLedger: LedgerStore = {
   },
 };
 
-export const ledger: LedgerStore = memoryLedger;
+/**
+ * Redis when one is configured, process memory otherwise.
+ *
+ * The difference matters more here than for funding records. A funding
+ * reference the server forgets can be re-seeded by the client that created it;
+ * a balance the server forgets is just gone, and the account silently returns
+ * to its opening figure.
+ */
+export const ledger: LedgerStore = hasRedis() ? redisLedger : memoryLedger;
 
 /** Signed value of a movement, for summing. */
 export function signedAmount(entry: LedgerEntry): number {

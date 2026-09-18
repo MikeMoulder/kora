@@ -1,18 +1,19 @@
 /**
  * Funding-request store.
  *
- * Deliberately a swappable interface with a process-memory default. A real
- * deployment puts Postgres or Redis behind this; a hackathon does not need to,
- * and pretending otherwise would be the kind of infrastructure theatre that
- * eats the clock.
+ * A swappable interface with a process-memory default, and Redis in front of
+ * it when one is configured.
  *
- * Known limitation, stated rather than hidden: on Vercel each serverless
- * instance has its own memory, so a request that lands on a cold instance will
- * not find a reference created by a warm one. The client keeps its own copy of
- * every funding request it created and re-hydrates the server on a miss
- * (`POST /api/funding/rehydrate`), so the demo survives it either way.
+ * Without Redis the limitation is worth stating rather than hiding: on Vercel
+ * each serverless instance has its own memory, so a request landing on a cold
+ * instance will not find a reference created by a warm one. The client keeps
+ * its own copy of every funding request it created and re-hydrates the server
+ * on a miss (`POST /api/funding/rehydrate`), so the demo survives it either
+ * way. With Redis configured the problem does not arise, and the rehydrate
+ * path stays as the belt to that braces.
  */
 
+import { hasRedis, redisFundingStore } from '@/lib/store/redis';
 import type { KoraFundingRequest, KoraFundingState, FundingStatus } from './types';
 
 export interface FundingRecord {
@@ -66,4 +67,10 @@ export const memoryStore: FundingStore = {
   },
 };
 
-export const store: FundingStore = memoryStore;
+/**
+ * Redis when one is configured, process memory otherwise.
+ *
+ * Chosen once at module load rather than per call. A store that changed
+ * backend halfway through a payment would be worse than either backend.
+ */
+export const store: FundingStore = hasRedis() ? redisFundingStore : memoryStore;
