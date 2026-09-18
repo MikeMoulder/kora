@@ -45,8 +45,17 @@ export function Dashboard() {
   const open = (next: PanelMode | null) => setPanel(next);
 
   return (
-    <div className="canvas min-h-screen p-0 lg:p-6 xl:p-9 2xl:p-14">
-      <div className="surface mx-auto flex min-h-screen w-full max-w-[1320px] overflow-hidden border-rule lg:min-h-0 lg:rounded-[28px] lg:border lg:shadow-[0_2px_4px_rgba(15,17,16,0.04),0_24px_60px_-20px_rgba(15,17,16,0.18)]">
+    /*
+     * The card floats on the canvas rather than filling it.
+     *
+     * Centred on both axes, with `my-auto` rather than `items-center` doing
+     * the vertical half. They look the same until the card is taller than the
+     * window, and then `items-center` overflows in both directions and puts
+     * the top of the dashboard somewhere you cannot scroll to. Auto margins
+     * collapse instead, so a tall card simply starts at the top.
+     */
+    <div className="canvas flex min-h-screen justify-center p-0 lg:p-6 xl:p-9 2xl:p-14">
+      <div className="surface my-auto flex min-h-screen w-full max-w-[1240px] overflow-hidden border-rule lg:min-h-0 lg:rounded-[28px] lg:border lg:shadow-[0_2px_4px_rgba(15,17,16,0.04),0_24px_60px_-20px_rgba(15,17,16,0.18)]">
         <div className="hidden lg:flex">
           <Sidebar panel={panel} onSelect={open} />
         </div>
