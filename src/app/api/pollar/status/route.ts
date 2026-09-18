@@ -15,8 +15,9 @@ export const dynamic = 'force-dynamic';
  * uses for its own gaps: what is blocked, and the exact thing that unblocks it.
  *
  * It is deliberately cheap. The two default probes create nothing: one
- * verifies a token that was never valid, the other reads the app config. The
- * probe that does leave a record is behind `?deep=1` and says so.
+ * verifies a token that was never valid, the other preflights and reads the
+ * app config. The probe that does leave a record is behind `?deep=1` and says
+ * so.
  */
 
 type State = 'pass' | 'blocked' | 'missing' | 'unknown';
@@ -62,9 +63,30 @@ async function checkDomains(origin: string): Promise<Check> {
     };
   }
 
+  let preflight: Response;
   let response: Response;
 
   try {
+    /*
+     * The preflight, first, because this check claims something about a
+     * browser and a plain GET from a server does not test it.
+     *
+     * The SDK sends `x-pollar-api-key`, which makes every call a preflighted
+     * CORS request. A server can get 200 from an endpoint that sends no
+     * `Access-Control-Allow-Origin`, and the browser would still refuse it.
+     * Reporting pass on that basis would be a comfortable lie in the one
+     * place this route exists to be honest about.
+     */
+    preflight = await fetch(SDK_CONFIG_URL, {
+      method: 'OPTIONS',
+      headers: {
+        origin,
+        'access-control-request-method': 'GET',
+        'access-control-request-headers': 'x-pollar-api-key',
+      },
+      cache: 'no-store',
+    });
+
     response = await fetch(SDK_CONFIG_URL, {
       headers: { 'x-pollar-api-key': POLLAR_PUBLISHABLE_KEY, origin },
       cache: 'no-store',
@@ -78,12 +100,23 @@ async function checkDomains(origin: string): Promise<Check> {
     };
   }
 
-  if (response.ok) {
+  const allowed = preflight.headers.get('access-control-allow-origin');
+
+  if (response.ok && allowed === origin) {
     return {
       ...base,
       state: 'pass',
-      detail: `${origin} is on the allowed list. The browser SDK can sign in.`,
+      detail: `${origin} is on the allowed list and clears CORS preflight. The browser SDK can sign in.`,
       fix: '',
+    };
+  }
+
+  if (response.ok && allowed !== origin) {
+    return {
+      ...base,
+      state: 'blocked',
+      detail: `Pollar accepts ${origin} from a server but returns no matching Access-Control-Allow-Origin, so a browser will refuse every call. Domains changes can take a moment to reach the CORS layer.`,
+      fix: `Confirm ${origin} is listed exactly, with the protocol and no trailing slash, under Build then Domains. If it is, wait a moment and re-run this check.`,
     };
   }
 
