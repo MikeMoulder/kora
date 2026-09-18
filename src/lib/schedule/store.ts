@@ -44,21 +44,20 @@ export const memorySchedule: ScheduleStore = {
     return memory.get(reference) ?? null;
   },
 
-  async settle(reference, status, outcome) {
+  async transition(reference, from, to, outcome) {
     const current = memory.get(reference);
 
     /*
-     * Only a held payment can move.
+     * The status has to be the one the caller expected.
      *
      * This is the whole of the double-send guard on the memory path. The
      * runner and the cancel route can both be called twice, by a retry, a
      * double click or two browser tabs polling at once, and the second call
-     * has to do nothing rather than deliver a second time. Checking the status
-     * here means neither caller has to remember to.
+     * has to do nothing rather than deliver a second time.
      */
-    if (!current || current.status !== 'held') return null;
+    if (!current || current.status !== from) return null;
 
-    const next: ScheduledPayment = { ...current, status, outcome };
+    const next: ScheduledPayment = { ...current, status: to, outcome };
     memory.set(reference, next);
     return next;
   },

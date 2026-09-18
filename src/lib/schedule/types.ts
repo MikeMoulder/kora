@@ -85,16 +85,29 @@ export interface ScheduleStore {
   put(payment: ScheduledPayment): Promise<boolean>;
   get(reference: string): Promise<ScheduledPayment | null>;
   /**
-   * Move a held payment to a terminal state.
+   * Compare and set: move a payment from one status to another.
    *
-   * Returns null when there is nothing held under that reference, which is
-   * how both the runner and the cancel route stay safe against being called
-   * twice: the second call finds a payment that is no longer `held` and does
-   * nothing rather than paying twice.
+   * `from` is what makes this safe rather than a convenience. Every caller
+   * knows which state it believes the payment is in, and a call that names the
+   * wrong one does nothing and returns null instead of overwriting whatever it
+   * found.
+   *
+   * That single property covers three different hazards with one mechanism:
+   *
+   *   from 'held' to 'cancelled'  a second click cancels nothing
+   *   from 'held' to 'failed'     the runner claims a payment exactly once
+   *   from 'failed' to 'sent'     only the runner that claimed it may record
+   *
+   * An earlier version guarded on `held` alone, which meant the runner could
+   * claim a payment but then could not write the outcome, because by then it
+   * was not held any more. Naming both ends removes the need for a bypass, and
+   * a store interface with a documented way around its own guard is a store
+   * interface whose guard means nothing.
    */
-  settle(
+  transition(
     reference: string,
-    status: Exclude<ScheduleStatus, 'held'>,
+    from: ScheduleStatus,
+    to: ScheduleStatus,
     outcome: ScheduledPayment['outcome'],
   ): Promise<ScheduledPayment | null>;
   list(): Promise<ScheduledPayment[]>;

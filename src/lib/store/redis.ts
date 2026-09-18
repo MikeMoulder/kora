@@ -151,7 +151,7 @@ export const redisSchedule: ScheduleStore = {
     return (await client().get<ScheduledPayment>(SCHEDULE_KEY(reference))) ?? null;
   },
 
-  async settle(reference, status, outcome) {
+  async transition(reference, from, to, outcome) {
     const redis = client();
     const current = await redis.get<ScheduledPayment>(SCHEDULE_KEY(reference));
 
@@ -167,11 +167,13 @@ export const redisSchedule: ScheduleStore = {
      *
      * It is written down rather than left for somebody to discover, because
      * the day this runs on a cron with two instances it becomes real, and the
-     * failure it produces is a payment delivered twice.
+     * failure it produces is a payment delivered twice. The fix is a Lua
+     * script doing the compare and the set in one round trip; the signature
+     * here is already the right shape for it.
      */
-    if (!current || current.status !== 'held') return null;
+    if (!current || current.status !== from) return null;
 
-    const next: ScheduledPayment = { ...current, status, outcome };
+    const next: ScheduledPayment = { ...current, status: to, outcome };
     await redis.set(SCHEDULE_KEY(reference), next);
     return next;
   },
