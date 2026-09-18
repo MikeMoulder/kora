@@ -227,19 +227,34 @@ function BrandPanel() {
       });
     };
 
-    if (video.readyState >= 3) markReady();
-    video.addEventListener('canplay', markReady);
+    const sync = () => {
+      if (video.readyState >= 3) markReady();
+    };
+
+    // Several events can be the one that actually arrives, depending on
+    // whether the document was hidden while the file loaded. A hidden tab
+    // does not decode video, so `canplay` may never be delivered even though
+    // the data is there and readyState later reads 4. Listening to one event
+    // alone leaves the panel black for good in that case.
+    sync();
+    for (const event of ['loadeddata', 'canplay', 'playing'] as const) {
+      video.addEventListener(event, markReady);
+    }
     tryPlay();
 
     // Browsers throttle media in a backgrounded tab and do not always resume
     // it on return, which leaves a frozen frame behind the sign in form.
     const onVisible = () => {
-      if (document.visibilityState === 'visible' && video.paused) tryPlay();
+      if (document.visibilityState !== 'visible') return;
+      sync();
+      if (video.paused) tryPlay();
     };
     document.addEventListener('visibilitychange', onVisible);
 
     return () => {
-      video.removeEventListener('canplay', markReady);
+      for (const event of ['loadeddata', 'canplay', 'playing'] as const) {
+        video.removeEventListener(event, markReady);
+      }
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);
@@ -303,20 +318,8 @@ function BrandPanel() {
           have yet.
         </p>
       </div>
-
-      <div className="relative flex items-center gap-4 border-t border-white/15 pt-6 font-mono text-[11px] uppercase tracking-[0.16em] text-white/45">
-        <span>NGN</span>
-        <Hairline />
-        <span>USDC</span>
-        <Hairline />
-        <span className="text-white/80">BOB</span>
-      </div>
     </aside>
   );
-}
-
-function Hairline() {
-  return <span className="h-px flex-1 bg-white/20" aria-hidden />;
 }
 
 /** Shown in place of the brand panel on narrow screens, which do not get one. */
