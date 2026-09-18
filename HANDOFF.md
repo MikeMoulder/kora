@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 120
+**Commits:** 125
 
 ---
 
@@ -243,8 +243,18 @@ Still outstanding, and both small:
 | 2026-09-18 | Real ledger entries in the list | Browser | 6 rows | All six are real movements, each naming its counterparty |
 | 2026-09-18 | Portrait request deduplication | Browser resource timing | 3 unique ids across 8 draws | 3 requests, one per id, module-level cache holding |
 | 2026-09-18 | Overview layout, 390px | Browser measurement | Horizontal overflow | None, scrollWidth equals clientWidth |
+| 2026-09-18 | Typecheck through the restructure | `npx tsc --noEmit` | Whole project | Clean, run 7 times |
+| 2026-09-18 | Activity assertions after the series change | `npm run probe:activity` | 33 checks | 1 failed, assertion too strict for a quiet day, loosened |
+| 2026-09-18 | Activity assertions, after loosening | `npm run probe:activity` | 33 checks | All passed |
+| 2026-09-18 | Smoke after the restructure | `npm run smoke` | 34 checks | All passed, no regression |
+| 2026-09-18 | Production build after the restructure | `npm run build` | 23 routes | Clean |
+| 2026-09-18 | Column fit, full width | Browser measurement | Plot 1069px | 90 columns at 11.88px pitch, dots round |
+| 2026-09-18 | Column fit, workspace panel open | Browser measurement | Plot 709px | 64 columns, dots round, footer relabelled |
+| 2026-09-18 | Column fit, 390px | Browser measurement | Plot 309px | 28 columns, dots round, no overflow |
+| 2026-09-18 | Top row alignment | Browser measurement | Balance card against list | 319px each, exact |
+| 2026-09-18 | Chart in a backgrounded page | Browser, pane not rendering | ResizeObserver delivery | Never fired, chart empty through a full reload, fixed by measuring first |
 
-**Total automated checks passing: 64.** 34 from `npm run smoke`, 30 from `npm run probe:activity`.
+**Total automated checks passing: 67.** 34 from `npm run smoke`, 33 from `npm run probe:activity`.
 
 ### What the tests caught
 
@@ -521,6 +531,38 @@ exists, because a client component cannot ask the filesystem anything.
 **Three elevations, and only three.** Every white object was carrying its own inline shadow
 string, slightly different each time. There is now a row, a panel and the app itself, in
 `globals.css`, so the page has a grammar of depth rather than a collection of one-offs.
+
+### Phase R2, the overview restructured
+
+Spend now runs the full width under the balance card and the transaction list, rather than
+sharing the left column with the balance. A year of columns is a shape and a shape needs
+length; at a third of this width a dot matrix of a year looked like a barcode.
+
+That made the column count a property of the window rather than of the data. The feed now
+builds longer series than any one screen draws, ninety days, a hundred and four weeks, sixty
+months, off five years of opening history, and the chart takes the tail it can draw at an
+11px pitch. Ninety columns at full width, sixty four with the workspace panel open, twenty
+eight at 390px. The window label and the total are counted from what is on screen, so
+neither can claim more than it shows.
+
+`SpendSeries` lost `total`, `peakIndex` and `window` in the same move. All three described
+the whole series and the chart shows a slice of it, so keeping them would have meant two
+answers to every question and the wrong one printed under the plot.
+
+The list drops to four rows so it stands beside the balance card rather than towering over
+it. Both measure 319px.
+
+**A real bug came out of this.** The chart sized itself from a `ResizeObserver` alone, and an
+observer delivers its first callback on the next rendering step. A page that is not being
+rendered has no next rendering step, so opening the app in a background tab left the chart
+waiting for a measurement that never arrived and drawing nothing. Found in the preview pane,
+where a backgrounded page kept the matrix empty through a full reload. The element is now
+measured with `getBoundingClientRect` before the observer is attached, which is synchronous
+and owes nothing to the compositor.
+
+Shadows are half what they were, the callout included. The three elevations were legible as
+three, which was the point, but stacked against a pale green they pooled into a grey the
+mint had to fight through.
 
 ### Known gaps in the corridor, stated plainly
 
