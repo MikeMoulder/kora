@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** U, the front door
-**Commits:** 150
+**Commits:** 152
 
 ---
 
@@ -189,6 +189,10 @@ Still outstanding, and both small:
 | 2026-09-18 | Ramp clearance, tall window | Browser measurement, 1280x720 | 1 | Block at 33.6 percent, ramp ends at 26, clears by 7.6 |
 | 2026-09-18 | Ramp clearance, short window | Browser measurement, 1280x620 | 1 | Block at 31 percent, clears by 5 |
 | 2026-09-18 | Frame timing after the fade change | rAF over playing video | 0 frames | Not run, pane hidden, previous 60.1fps stands |
+| 2026-09-18 | Per pixel contrast, blur 32, text 75 | Canvas blurred at the real radius | 84,096 samples, 12 frames | 4.10, fails the 4.5 floor |
+| 2026-09-18 | Per pixel contrast, blur 64, text 75 | Same method, previous setting | 84,096 samples, 12 frames | 4.64, passed by a quarter point |
+| 2026-09-18 | Tint and text sweep at blur 32 | Same samples, five settings | 5 settings | 90 percent white passes at 5.08, 60 percent tint at 5.33 |
+| 2026-09-18 | Headline contrast after the change | Same method, headline box | 12 frames | 5.25 against a floor of 3.0 |
 | 2026-09-18 | Smoke after dashboard | `npm run smoke` | 34 checks | All passed, no regression |
 | 2026-09-18 | Typecheck during overview cleanup | `npx tsc --noEmit` | Whole project | Clean, run 5 times |
 | 2026-09-18 | Smoke after overview cleanup | `npm run smoke` | 34 checks | All passed, no regression |
@@ -972,6 +976,33 @@ the fully opaque part of the mask rather than inside a plateau between two ramps
 Frame timing was not re-run for this change: the element, the blur radius and the area are
 unchanged, only the mask stops moved, and the attempt returned zero frames because the pane
 was hidden. Recorded as not run rather than inferred.
+
+### Phase U6, the blur halved, and the measurement was wrong all along
+
+Requested: the blur is too thick, halve it. 64 to 32, and an arbitrary value rather than a
+step on the scale, since the scale goes 24 then 40.
+
+**Thinning the blur costs contrast**, which is obvious once stated and was not caught until
+it was measured. Less smoothing leaves a higher peak behind the type, 200 against 181, and
+the paragraph fell to 4.10 against the 4.5 it needs. Two ways out: a 60 percent tint fixes
+it at 5.33 and darkens the glass, which is the opposite of what thinning the blur was for,
+or 90 percent white on the paragraph fixes it at 5.08 and leaves the room showing through.
+The second is the one taken.
+
+**The correction that matters for anybody reading the earlier entries.** Every contrast
+number in phases U2 through U5 was the average of the frame behind the paragraph. Type does
+not sit on an average. One bright patch under one line is a failure the mean hides, and that
+is exactly what was happening: the mean said 5.57 while a patch at the right hand end of the
+first line, at 18.4 seconds into the clip, was sitting at 3.7.
+
+Re-measured properly, the 64px band read 4.64 per pixel. It passed, but by a quarter of a
+point rather than the margin the old numbers implied.
+
+The method now is: draw the frame into a canvas with the same blur radius the panel actually
+uses, composite the tint, and take the minimum across every sampled pixel in the text box
+rather than the mean. 84,096 samples across 12 frames. Approximating the blur by
+downsampling into blocks was tried first and is not good enough either, since a box average
+over 32px blocks and a Gaussian of radius 32 do not have the same peaks.
 
 ---
 
