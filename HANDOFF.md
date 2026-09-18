@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 126
+**Commits:** 129
 
 ---
 
@@ -253,6 +253,16 @@ Still outstanding, and both small:
 | 2026-09-18 | Column fit, 390px | Browser measurement | Plot 309px | 28 columns, dots round, no overflow |
 | 2026-09-18 | Top row alignment | Browser measurement | Balance card against list | 319px each, exact |
 | 2026-09-18 | Chart in a backgrounded page | Browser, pane not rendering | ResizeObserver delivery | Never fired, chart empty through a full reload, fixed by measuring first |
+| 2026-09-18 | Operator route after retirement | Browser | `/operator` | 404, no route in the build |
+| 2026-09-18 | Activity panel | Browser DOM probe | 30 rows | Scrolls inside 560px, dated, all portraits loaded |
+| 2026-09-18 | Portraits supplied | Browser resource timing | 7 files | All resolve, 4 drawn on the overview, businesses correctly on monograms |
+| 2026-09-18 | Motion tokens in the cascade | Browser computed style | 5 rules | press, lift, stagger, panel-in and the reduced-motion block all present |
+| 2026-09-18 | Stagger delays | Browser computed style | Rows 1 to 3 | 40ms, 80ms, applied and capped |
+| 2026-09-18 | Press composing with colour | Browser computed style | Rail button | 6 properties on one 130ms transition after the shorthand fix |
+| 2026-09-18 | Callout glide | Browser computed style | Chart callout and ring | `left` over 220ms, both |
+| 2026-09-18 | Typecheck through the motion work | `npx tsc --noEmit` | Whole project | Clean, run 6 times |
+| 2026-09-18 | Production build after retirement | `npm run build` | 22 routes | Clean, operator gone |
+| 2026-09-18 | Smoke after the motion work | `npm run smoke` | 34 checks | All passed, no regression |
 
 **Total automated checks passing: 67.** 34 from `npm run smoke`, 33 from `npm run probe:activity`.
 
@@ -564,6 +574,34 @@ and owes nothing to the compositor.
 Shadows are half what they were, the callout included. The three elevations were legible as
 three, which was the point, but stacked against a pale green they pooled into a grey the
 mint had to fight through.
+
+### Phase S, the operator console retired and the app given motion
+
+`/operator` is gone, along with `components/ui.tsx`, which had no other caller. It was a
+reconciliation desk: a queue of funding references waiting for a human to match them against
+a bank statement. That desk is real and every African collections operation has one, but it
+was never part of this account holder's app, and both entry points into it said so. The rail
+filed it under a settings cog; the transaction list linked to it from View all, which
+promised a fuller history of the account and delivered somebody else's work queue.
+
+View all now opens an activity panel: the last thirty movements, dated, scrolling inside the
+panel rather than growing it and taking the balance off screen. The rail slot goes to the
+same panel. `TransactionRow` moved to `parts.tsx`, since the card and the panel draw the same
+object. `/api/funding/pending` and the confirm route stay; the desk still exists in the
+corridor design, it just has no screen here.
+
+**Motion.** The app had forty `transition-colors`, three `transition-opacity` and one scale.
+Nothing answered a press. There are now three durations and two curves in `globals.css`, and
+two primitives carrying the whole surface: `press` scales to 0.96, `lift` raises a card one
+pixel. Cards rise in, rows stagger 40ms apart capped at the eighth, the panel slides in from
+the edge it lives on and is keyed so switching workspaces replays it, and the chart's callout
+and ring glide between columns rather than teleporting. Reduced motion turns all of it off
+rather than slowing it down.
+
+One trap worth recording: `press` first declared its transition with the `transition`
+shorthand, which resets every part of the property and silently cancelled the colour fade on
+every control it was added to. The markup looked right, because the Tailwind transition class
+was still sitting there being overridden. Longhands fixed it.
 
 ### Known gaps in the corridor, stated plainly
 
