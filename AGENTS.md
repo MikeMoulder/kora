@@ -15,3 +15,4 @@ target is 50+ commits till project completion, so curate a professional startegi
 never add yourself as a co-author to commits
 keep commits message professional written and stryctyred, no em-dahses
 always log all tests you ran, count and all necessary stuffs
+always gitignore all other .md files except readme.md and it's dependecies md

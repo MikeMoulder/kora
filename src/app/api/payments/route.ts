@@ -1,4 +1,4 @@
-import { ACCOUNT } from '@/lib/demo-data';
+import { ACCOUNT, BENEFICIARIES } from '@/lib/demo-data';
 import { accountBalance, ledger } from '@/lib/account/ledger';
 import { makeReference } from '@/lib/corridor/adapters/shared';
 import { quote as quoteCorridor } from '@/lib/corridor/engine';
@@ -44,6 +44,20 @@ interface SendBody {
   account?: string;
   amount?: number;
   note?: string;
+}
+
+/**
+ * The saved beneficiary's portrait, when the recipient is one of them.
+ *
+ * Matched on the name, which is the only thing the send form is guaranteed to
+ * carry: a payment can be composed by hand, by the agent, or off the
+ * beneficiary book, and only the last of those knows an id. Anybody not in
+ * the book gets a monogram, which is the correct answer rather than a
+ * fallback.
+ */
+function avatarIdFor(name: string): string | null {
+  const wanted = name.trim().toLowerCase();
+  return BENEFICIARIES.find((b) => b.name.toLowerCase() === wanted)?.avatarId ?? null;
 }
 
 /** Stable per beneficiary, so the same person keeps the same wallet. */
@@ -103,6 +117,9 @@ export async function POST(request: Request) {
       currency: ACCOUNT.currency,
       detail: `Payment to ${name} in ${countryName}${body.note ? `, ${body.note}` : ''}.`,
       source: 'corridor',
+      party: name,
+      partyKind: 'person',
+      avatarId: avatarIdFor(name),
     });
 
     if (!debited) throw new Error('That reference has already been used.');
@@ -203,5 +220,7 @@ async function reverse(reference: string, amount: number, why: string) {
     currency: ACCOUNT.currency,
     detail: `Reversal of ${reference}. ${why}`,
     source: 'corridor',
+    party: 'Reversed payment',
+    partyKind: 'business',
   });
 }

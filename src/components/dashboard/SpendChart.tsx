@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { CardLabel } from './parts';
-import { SPEND_WEEKS, SPEND_PEAK_INDEX } from '@/lib/demo-data';
+import type { ActivityPayload } from '@/lib/account/activity';
 
 /**
  * Outbound spend, drawn as a dot matrix.
@@ -24,17 +24,29 @@ const DOT = 3.2;
 const GAP_X = 6.4;
 const GAP_Y = 6;
 
-export function SpendChart() {
-  const [selected, setSelected] = useState(SPEND_PEAK_INDEX);
+export function SpendChart({ activity }: { activity: ActivityPayload | null }) {
+  const series = activity?.spend.weekly ?? null;
+  const buckets = useMemo(() => series?.buckets ?? [], [series]);
 
-  const max = useMemo(() => Math.max(...SPEND_WEEKS), []);
-  const width = SPEND_WEEKS.length * GAP_X;
+  const [selected, setSelected] = useState(0);
+
+  // The peak is what the chart annotates until somebody hovers something else.
+  useEffect(() => {
+    if (series) setSelected(series.peakIndex);
+  }, [series]);
+
+  const max = useMemo(() => Math.max(1, ...buckets.map((b) => b.amount)), [buckets]);
+  const width = Math.max(1, buckets.length) * GAP_X;
   const height = ROWS * GAP_Y;
 
-  const selectedValue = SPEND_WEEKS[selected] * 1_000;
+  const current = buckets[selected] ?? null;
+  const selectedValue = current?.amount ?? 0;
 
   // Keep the callout inside the plot rather than letting it run off an edge.
-  const calloutPercent = Math.min(88, Math.max(12, ((selected + 0.5) / SPEND_WEEKS.length) * 100));
+  const calloutPercent = Math.min(
+    88,
+    Math.max(12, ((selected + 0.5) / Math.max(1, buckets.length)) * 100),
+  );
 
   return (
     <div className="rounded-xl border border-rule bg-paper p-5">
@@ -69,7 +81,7 @@ export function SpendChart() {
               &#8358;{selectedValue.toLocaleString()}
             </div>
             <div className="mt-1 text-[10px] uppercase tracking-[0.1em] text-ink/55">
-              Week {selected + 1}
+              {current?.label ?? 'No data'}
             </div>
           </div>
           <div className="mx-auto h-2 w-px bg-ink" />
@@ -80,14 +92,14 @@ export function SpendChart() {
           className="h-[132px] w-full"
           preserveAspectRatio="none"
           role="img"
-          aria-label={`Weekly outbound spend across ${SPEND_WEEKS.length} weeks. Week ${selected + 1} selected at ${selectedValue.toLocaleString()} naira.`}
+          aria-label={`Outbound spend across ${buckets.length} periods. ${current?.label ?? 'Nothing'} selected at ${selectedValue.toLocaleString()} naira.`}
         >
-          {SPEND_WEEKS.map((value, column) => {
-            const filled = Math.max(1, Math.round((value / max) * ROWS));
+          {buckets.map((bucket, column) => {
+            const filled = Math.max(1, Math.round((bucket.amount / max) * ROWS));
             const isSelected = column === selected;
 
             return (
-              <g key={column}>
+              <g key={bucket.at}>
                 {Array.from({ length: ROWS }, (_, row) => {
                   // Rows count up from the bottom of the plot.
                   const fromBottom = ROWS - 1 - row;
@@ -123,8 +135,8 @@ export function SpendChart() {
       </div>
 
       <div className="mt-4 flex items-center justify-between border-t border-rule pt-3 text-[11px] text-ink-faint">
-        <span>52 weeks</span>
-        <span>Hover a column to read its week</span>
+        <span>{series?.window ?? 'Loading'}</span>
+        <span>Hover a column to read it</span>
       </div>
     </div>
   );

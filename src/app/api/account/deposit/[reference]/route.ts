@@ -49,6 +49,8 @@ export async function GET(
       amount: verified.data.amount,
       currency: verified.data.currency,
       detail: `Deposit confirmed by Flutterwave, ref ${verified.data.flwRef}.`,
+      party: 'Flutterwave deposit',
+      partyKind: 'business',
       source: 'flutterwave',
     });
 

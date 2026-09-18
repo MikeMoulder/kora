@@ -22,6 +22,7 @@ import {
   relativeDay,
   type Beneficiary,
 } from '@/lib/demo-data';
+import type { ActivityPayload } from '@/lib/account/activity';
 
 // ── Rates ─────────────────────────────────────────────────────────────────
 
@@ -103,6 +104,37 @@ export function useBalance() {
   }, [refresh]);
 
   return { balance, refresh };
+}
+
+// ── Activity ─────────────────────────────────────────────────────
+
+/**
+ * The transaction rows and the spend series.
+ *
+ * Fetched rather than imported, because the list is the opening history plus
+ * whatever is on the ledger and only the server can see the second half.
+ * `refresh` is what makes a send visible: the money leaves, the balance moves,
+ * and the row has to appear next to it rather than on the next reload.
+ */
+export function useActivity() {
+  const [activity, setActivity] = useState<ActivityPayload | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      const body = await fetch('/api/account/activity', { cache: 'no-store' }).then((r) =>
+        r.json(),
+      );
+      if (body?.ok) setActivity(body.data as ActivityPayload);
+    } catch {
+      // The list and the chart both render their loading state instead.
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { activity, refresh };
 }
 
 /**

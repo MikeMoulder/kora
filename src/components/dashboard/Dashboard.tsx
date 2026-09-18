@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import Link from 'next/link';
 import { ArrowDownLeft, ArrowUpRight, Bell, Eye, EyeOff, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,7 @@ import {
   BeneficiaryPanel,
   ReceivePanel,
   SendPanel,
+  useActivity,
   useBalance,
   useRates,
   type BalancePayload,
@@ -19,13 +20,8 @@ import {
 } from './panels';
 import { CardLabel, DirectionMark, IconButton, Monogram } from './parts';
 import { Flag } from '../Flag';
-import {
-  ACCOUNT,
-  TRANSACTIONS,
-  formatNaira,
-  relativeDay,
-  type DemoTransaction,
-} from '@/lib/demo-data';
+import { ACCOUNT, formatNaira, relativeDay } from '@/lib/demo-data';
+import type { ActivityItem, ActivityPayload } from '@/lib/account/activity';
 
 /**
  * The account dashboard.
@@ -45,7 +41,19 @@ export function Dashboard() {
   const [panel, setPanel] = useState<PanelMode | null>(null);
   const [draft, setDraft] = useState<SendDraft | null>(null);
   const rates = useRates();
-  const { balance, refresh } = useBalance();
+  const { balance, refresh: refreshBalance } = useBalance();
+  const { activity, refresh: refreshActivity } = useActivity();
+
+  /*
+   * A send moves the balance and writes a row, so both have to be re-read.
+   * Refreshing only the balance left the money gone from the card and the
+   * payment missing from the list beside it, which reads as a bug in the
+   * corridor rather than a stale fetch.
+   */
+  const refresh = useCallback(() => {
+    void refreshBalance();
+    void refreshActivity();
+  }, [refreshBalance, refreshActivity]);
 
   /**
    * Opening a panel by hand clears any draft. A set of fields composed ten
@@ -101,11 +109,11 @@ export function Dashboard() {
                     onPay={() => open('send')}
                     onReceive={() => open('receive')}
                   />
-                  <SpendChart />
+                  <SpendChart activity={activity} />
                 </div>
 
                 <div className="min-w-0">
-                  <Transactions />
+                  <Transactions activity={activity} />
                 </div>
               </div>
             </main>
@@ -412,7 +420,7 @@ function Action({
  * is gained by binding them into a single object. Separated cards also let a
  * row be hovered, and later opened, without the list shifting.
  */
-function Transactions() {
+function Transactions({ activity }: { activity: ActivityPayload | null }) {
   return (
     <div>
       <div className="px-1">
@@ -431,7 +439,7 @@ function Transactions() {
       </div>
 
       <ul className="mt-3 space-y-2">
-        {TRANSACTIONS.map((tx) => (
+        {(activity?.transactions ?? []).map((tx) => (
           <TransactionRow key={tx.id} tx={tx} />
         ))}
       </ul>
@@ -439,7 +447,7 @@ function Transactions() {
   );
 }
 
-function TransactionRow({ tx }: { tx: DemoTransaction }) {
+function TransactionRow({ tx }: { tx: ActivityItem }) {
   const outgoing = tx.direction === 'out';
 
   return (

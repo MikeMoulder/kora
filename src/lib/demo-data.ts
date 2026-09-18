@@ -1,15 +1,19 @@
 /**
- * Demo account data for the dashboard.
+ * The people, places and rates the dashboard is a dashboard *of*.
  *
- * Invented, and labelled as such wherever it is shown. It exists so the
- * dashboard has something to be a dashboard *of* while the corridor engine
- * behind it stays real. Nothing here is fetched, nothing is persisted, and no
- * figure on this page should be read as a live balance.
+ * Invented, and labelled as such wherever it is shown. The corridor engine
+ * behind it stays real; this is the cast it operates on.
  *
- * Everything is a fixed literal rather than generated at runtime. Random data
- * would differ between the server render and the client hydration, which React
- * reports as a mismatch, and a chart that reshuffles on every reload is worse
- * for a demo than one that does not.
+ * What used to sit here as well was a fixed list of transactions and a fixed
+ * array of weekly spend. Those are gone. Activity is now derived in
+ * `lib/account/activity.ts` from an opening history plus the real ledger, so
+ * a payment that goes out through the corridor actually shows up in the rows
+ * and actually moves the chart. Two hardcoded arrays could never do that, and
+ * worse, they could never be wrong in a way anybody would notice.
+ *
+ * Everything that remains here is a fixed literal rather than generated at
+ * runtime, for the usual reason: values that differ between the server render
+ * and the client hydration are reported by React as a mismatch.
  */
 
 /**
@@ -35,6 +39,8 @@ export interface DemoAccount {
   /** Major units. */
   balance: number;
   country: string;
+  /** Which file in `public/avatars` carries this person's portrait. */
+  avatarId: string;
   receiving: DemoReceivingAccount;
 }
 
@@ -44,6 +50,7 @@ export const ACCOUNT: DemoAccount = {
   currency: 'NGN',
   balance: 4_820_650.0,
   country: 'NG',
+  avatarId: 'ada-okafor',
   receiving: {
     bankName: 'Sterling Bank',
     accountNumber: '0112436789',
@@ -70,6 +77,16 @@ export interface Beneficiary {
   paymentCount: number;
   lastPaidAt: string | null;
   favourite: boolean;
+  /** Which file in `public/avatars` carries their portrait. */
+  avatarId: string;
+  /**
+   * Low and high of what one invoice from them runs to, in NGN.
+   *
+   * The opening history draws inside this band rather than from one flat
+   * range for everybody. A designer's invoice and a QA pass being the same
+   * size is the detail that makes generated data read as generated.
+   */
+  rateBand: [number, number];
 }
 
 /**
@@ -89,6 +106,8 @@ export const BENEFICIARIES: Beneficiary[] = [
     paymentCount: 14,
     lastPaidAt: '2026-09-11T09:20:00Z',
     favourite: true,
+      avatarId: 'carlos-mamani',
+    rateBand: [280_000, 520_000],
   },
   {
     id: 'ben_maria',
@@ -101,6 +120,8 @@ export const BENEFICIARIES: Beneficiary[] = [
     paymentCount: 9,
     lastPaidAt: '2026-09-05T14:05:00Z',
     favourite: true,
+      avatarId: 'maria-quispe',
+    rateBand: [180_000, 340_000],
   },
   {
     id: 'ben_diego',
@@ -113,6 +134,8 @@ export const BENEFICIARIES: Beneficiary[] = [
     paymentCount: 4,
     lastPaidAt: '2026-08-28T11:40:00Z',
     favourite: false,
+      avatarId: 'diego-rojas',
+    rateBand: [95_000, 210_000],
   },
   {
     id: 'ben_valeria',
@@ -125,6 +148,8 @@ export const BENEFICIARIES: Beneficiary[] = [
     paymentCount: 2,
     lastPaidAt: '2026-08-14T08:15:00Z',
     favourite: false,
+      avatarId: 'valeria-ticona',
+    rateBand: [60_000, 130_000],
   },
   {
     id: 'ben_ana',
@@ -137,6 +162,8 @@ export const BENEFICIARIES: Beneficiary[] = [
     paymentCount: 1,
     lastPaidAt: null,
     favourite: false,
+      avatarId: 'ana-flores',
+    rateBand: [45_000, 110_000],
   },
   {
     id: 'ben_bruno',
@@ -149,118 +176,57 @@ export const BENEFICIARIES: Beneficiary[] = [
     paymentCount: 0,
     lastPaidAt: null,
     favourite: false,
+      avatarId: 'bruno-almeida',
+    rateBand: [220_000, 430_000],
   },
 ];
 
-// ── Transactions ──────────────────────────────────────────────────────────
-
-export type TxDirection = 'out' | 'in';
-
-export interface DemoTransaction {
-  id: string;
-  /** Counterparty. A person for payouts, a business for income. */
-  party: string;
-  kind: 'person' | 'business';
-  direction: TxDirection;
-  /** Signed amount in NGN, major units. */
-  amount: number;
-  /** What actually happened, shown as the second line. */
-  detail: string;
-  at: string;
-  /** Present when this went through a KORA corridor. */
-  corridor?: string;
-}
-
-export const TRANSACTIONS: DemoTransaction[] = [
-  {
-    id: 'tx_01',
-    party: 'Lagos Ventures Ltd',
-    kind: 'business',
-    direction: 'in',
-    amount: 1_450_000,
-    detail: 'Client retainer, September',
-    at: '2026-09-17T16:42:00Z',
-  },
-  {
-    id: 'tx_02',
-    party: 'Carlos Mamani',
-    kind: 'person',
-    direction: 'out',
-    amount: -412_300,
-    detail: 'Logo and brand system',
-    at: '2026-09-17T09:20:00Z',
-    corridor: 'NG.NGN.NIP.onramp',
-  },
-  {
-    id: 'tx_03',
-    party: 'Maria Quispe',
-    kind: 'person',
-    direction: 'out',
-    amount: -268_900,
-    detail: 'Dashboard build, milestone 2',
-    at: '2026-09-16T11:08:00Z',
-    corridor: 'NG.NGN.NIP.onramp',
-  },
-  {
-    id: 'tx_04',
-    party: 'Kuda Business',
-    kind: 'business',
-    direction: 'in',
-    amount: 320_000,
-    detail: 'Invoice 2026-114 settled',
-    at: '2026-09-15T13:55:00Z',
-  },
-  {
-    id: 'tx_05',
-    party: 'Diego Rojas',
-    kind: 'person',
-    direction: 'out',
-    amount: -154_750,
-    detail: 'Launch film, first cut',
-    at: '2026-09-14T15:30:00Z',
-    corridor: 'NG.NGN.NIP.onramp',
-  },
-  {
-    id: 'tx_06',
-    party: 'Valeria Ticona',
-    kind: 'person',
-    direction: 'out',
-    amount: -96_400,
-    detail: 'Regression pass, sprint 9',
-    at: '2026-09-12T10:02:00Z',
-    corridor: 'KE.KES.MPESA.onramp',
-  },
-  {
-    id: 'tx_07',
-    party: 'Paystack',
-    kind: 'business',
-    direction: 'in',
-    amount: 688_200,
-    detail: 'Collections payout',
-    at: '2026-09-11T08:18:00Z',
-  },
-];
-
-// ── Spend series ──────────────────────────────────────────────────────────
+// ── Income ────────────────────────────────────────────────────────
 
 /**
- * Weekly outbound spend for the dot matrix, in NGN thousands.
+ * Where the naira comes from before it goes out again.
  *
- * Fifty two fixed values. The peak is the week the chart calls out, which is
- * why the series is written down rather than generated: the callout has to
- * land on a known column.
+ * Businesses rather than people, because that is what pays an agency: a
+ * client retainer, a settled invoice, a collections payout. The distinction
+ * is not cosmetic. It is what decides whether a row draws a portrait or a
+ * logo, and it is the axis the transaction list is sorted along by eye.
  */
-export const SPEND_WEEKS: number[] = [
-  180, 220, 140, 310, 260, 190, 240, 420, 380, 300, 260, 340, 290, 210, 250, 330, 470, 520,
-  390, 280, 240, 360, 310, 260, 420, 560, 610, 480, 350, 300, 270, 390, 440, 520, 680, 740,
-  820, 610, 470, 380, 330, 420, 500, 580, 640, 720, 560, 430, 360, 410, 470, 520,
+export interface IncomeSource {
+  name: string;
+  /** What the money was for. */
+  detail: string;
+  /** Low and high of one payment, in NGN. */
+  rateBand: [number, number];
+  /** Which file in `public/avatars` carries their logo, when one exists. */
+  avatarId: string | null;
+}
+
+export const INCOME_SOURCES: IncomeSource[] = [
+  {
+    name: 'Lagos Ventures Ltd',
+    detail: 'Client retainer',
+    rateBand: [900_000, 1_600_000],
+    avatarId: null,
+  },
+  {
+    name: 'Kuda Business',
+    detail: 'Invoice settled',
+    rateBand: [220_000, 480_000],
+    avatarId: null,
+  },
+  {
+    name: 'Paystack',
+    detail: 'Collections payout',
+    rateBand: [380_000, 920_000],
+    avatarId: null,
+  },
+  {
+    name: 'Flutterwave',
+    detail: 'Merchant settlement',
+    rateBand: [260_000, 700_000],
+    avatarId: null,
+  },
 ];
-
-/** Index of the week the chart annotates. The tallest column. */
-export const SPEND_PEAK_INDEX = 36;
-
-/** Total across the series, in NGN. */
-export const SPEND_TOTAL = SPEND_WEEKS.reduce((sum, week) => sum + week, 0) * 1_000;
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 

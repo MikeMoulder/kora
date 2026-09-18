@@ -30,6 +30,19 @@ export interface LedgerEntry {
   detail: string;
   /** Who told us this happened. */
   source: 'flutterwave' | 'corridor' | 'simulated';
+
+  /*
+   * Who the money moved to or from.
+   *
+   * Optional because entries written before the activity feed existed do not
+   * carry it, and a store that has to be migrated before the app will start
+   * is a store that will be empty at the wrong moment. The feed names the
+   * source instead when these are missing, rather than inventing a person.
+   */
+  party?: string;
+  partyKind?: 'person' | 'business';
+  /** Which file in `public/avatars` to draw for them, when there is one. */
+  avatarId?: string | null;
 }
 
 export interface LedgerStore {
