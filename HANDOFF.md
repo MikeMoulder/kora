@@ -5,13 +5,33 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 100
+**Commits:** 119
 
 ---
 
 ## Next task
 
-**README and the submission write-up.** Everything below is done; this is not.
+**Drop the seven portraits into `public/avatars/`.** Nothing else is blocked on it and the
+interface does not break without it, but it is the only outstanding piece of this round.
+
+One square image per file, 96px or larger. They are drawn at 44px and below:
+
+```
+public/avatars/ada-okafor.png       the account holder
+public/avatars/carlos-mamani.png    Carlos Mamani
+public/avatars/maria-quispe.png     Maria Quispe
+public/avatars/diego-rojas.png      Diego Rojas
+public/avatars/valeria-ticona.png   Valeria Ticona
+public/avatars/ana-flores.png       Ana Flores
+public/avatars/bruno-almeida.png    Bruno Almeida
+```
+
+No code change is needed. `Avatar` in `components/dashboard/parts.tsx` paints the monogram
+disc first and lays the portrait over it, so a file that is not there fails its request
+once and the disc takes the space. Businesses keep the monogram by design; a logo is not a
+portrait, and the distinction is how the list sorts people from companies by eye.
+
+**Then: README and the submission write-up.** Still the last real piece of work.
 
 The corridor runs end to end for real. The strongest artefact is the Stellar transaction,
 and it should be the first thing a judge sees:
@@ -28,8 +48,13 @@ to      GAXMTAOXFC4CZFM3BDA52FC3Q7NHN47XJFXZV7YDQ7TCZJIPQVT63FDA   Carlos Mamani
 recipient wallet 0 to 14.8804771, balance 4,915,650 to 4,895,650. All three confirmed on
 Horizon.
 
-Also outstanding: the local build is ahead of production by the /send retirement and the
-payments work. Deploy before submitting.
+Also outstanding: the local build is ahead of production by the /send retirement, the
+payments work and this round of interface work. Deploy before submitting.
+
+Housekeeping, unactioned on purpose: `AGENTS.md` asks for every `.md` except the README and
+its dependencies to be gitignored. Ten are tracked today, including `SUBMISSION.md` and this
+file. Untracking them is not something to do quietly the day of a deadline, so it is flagged
+rather than done.
 
 ---
 
@@ -206,8 +231,18 @@ Still outstanding, and both small:
 | 2026-09-18 | Funding record on Redis | API, quote to funded | 1 full run | Funded, key written and indexed |
 | 2026-09-18 | Production build with the account routes | `npm run build` | 21 routes | Clean |
 | 2026-09-18 | Cross process persistence | Localhost write, production read | 1 | Production read both entries |
+| 2026-09-18 | Activity feed assertions | `npm run probe:activity` | 30 checks | 6 failed, all in the test itself, seeded rows outranked the injected one |
+| 2026-09-18 | Activity feed, after fixing the test | `npm run probe:activity` | 30 checks | All passed |
+| 2026-09-18 | Smoke after the activity feed | `npm run smoke` | 34 checks | All passed, no regression |
+| 2026-09-18 | Typecheck through the interface work | `npx tsc --noEmit` | Whole project | Clean, run 9 times |
+| 2026-09-18 | Production build with the activity feed | `npm run build` | 23 routes | Clean, run 3 times |
+| 2026-09-18 | Spend range switching | Browser, driven select | 3 ranges | Daily 30 columns, weekly 52, yearly 12, dots round in all three |
+| 2026-09-18 | Dot grid geometry, 1440px | Browser measurement | Pitch and gap | 10.60px against 10.71px pitch, 4.77px against 4.89px gap, square |
+| 2026-09-18 | Avatar fallback with no files present | Browser network log | 7 portraits | Every request 404s once, monogram takes the space, no layout shift |
+| 2026-09-18 | Activity endpoint | Browser network log | `/api/account/activity` | 200, list and all three series in one response |
+| 2026-09-18 | Real ledger entries in the list | Browser | 6 rows | All six are real movements, each naming its counterparty |
 
-**Total automated checks passing: 34.**
+**Total automated checks passing: 64.** 34 from `npm run smoke`, 30 from `npm run probe:activity`.
 
 ### What the tests caught
 
@@ -440,6 +475,50 @@ added.
 `/send` is gone. It asked for naira the account already holds and made the sender sign in to
 move USDC their wallet never had. Kora Agent and the beneficiary book now hand a draft to
 the send panel instead of navigating with a sentence in the URL.
+
+### Phase R, the dashboard reads from the ledger
+
+The two things the overview showed were hardcoded arrays: a list of seven transactions and
+fifty two weeks of spend, both literals in `demo-data.ts`. Neither could be moved by
+anything the app did, so a payment could go out through the corridor, leave the balance, and
+appear in neither. Worse, neither could ever be *wrong* in a way anybody would notice.
+
+Activity is now built in one place, `lib/account/activity.ts`, from an opening history plus
+the real ledger. That is the same opening-plus-movements shape the balance already takes,
+and it means a send writes a row and moves the chart because there is only one set of facts
+for both to read. Served over `/api/account/activity` rather than imported, because the
+history is anchored to the current instant and generating it client side would produce one
+series during the server render and another at hydration.
+
+The opening history is generated, not written out. The generator is seeded by calendar day
+rather than by position in the window: seeding by position looks identical until midnight,
+when every draw shifts a column and twelve months of history quietly rewrites itself.
+
+Ledger entries now carry the counterparty. Entries written before that was a field have
+their name read back out of the wording, which is a sentence this code produced and
+therefore knows the shape of. Six rows that read "Corridor payment" now read like an
+account. Anything unparseable names the rail rather than inventing a person.
+
+**The transaction rows** were rebuilt on the supplied reference: portrait, who and what
+happened, how much, and nothing else. The direction badge on the right is gone, since the
+sign and the colour already say which way the money went. What replaces it is the
+reference's small circular glyph after the status word, carrying the row's provenance —
+solid ink for a real movement, hairline for opening history.
+
+**The spend chart** got the daily, weekly and yearly range it was missing, daily by default,
+behind a real select rather than the button that did nothing. It also came off SVG: a
+viewBox stretched into an arbitrary container with `preserveAspectRatio` none scales x and y
+by different factors, so every dot in the old chart was an ellipse. Laid out with flex, a
+dot takes its height from its width and is a share of its column, which holds the grid
+square at any width and any column count. Measured at 1440px: 10.60px against 10.71px pitch.
+
+**Portraits** land in `public/avatars/`, with `Avatar` painting the monogram disc first and
+the image over it. The fallback is on the image error rather than a check that the file
+exists, because a client component cannot ask the filesystem anything.
+
+**Three elevations, and only three.** Every white object was carrying its own inline shadow
+string, slightly different each time. There is now a row, a panel and the app itself, in
+`globals.css`, so the page has a grammar of depth rather than a collection of one-offs.
 
 ### Known gaps in the corridor, stated plainly
 
