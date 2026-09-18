@@ -5,27 +5,47 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 83
+**Commits:** 85
 
 ---
 
 ## Next task
 
-**Two things, both waiting on a person rather than on code.**
+**Three things, all waiting on a person rather than on code.**
 
-**1. Paste the Flutterwave test keys into `.env.local`.** The corridor is wired and falls
-back to the fixed sandbox account until they land. Get them at flutterwave.com, Settings
-then API Keys under DEVELOPERS. Set `FLW_SECRET_KEY` and `NEXT_PUBLIC_FLW_PUBLIC_KEY`.
+The app is deployed to production at
+`https://kora-mikes-projects-7ac9bd1b.vercel.app`, project `mikes-projects-7ac9bd1b/kora`,
+build clean across 18 routes. It is not usable yet for two reasons.
 
-Then, on the Flutterwave dashboard under Settings then Webhooks, set the URL to
-`<deployed-url>/api/funding/flutterwave/webhook` and paste the secret hash already sitting
-in `.env.local` as `FLW_SECRET_HASH`. The two values must match or every delivery is
-refused, which is the intended behaviour.
+**1. Turn off Vercel Deployment Protection.** Every URL answers 302 to an SSO login, so
+judges cannot open it and Flutterwave cannot deliver a webhook. Vercel dashboard, project
+`kora`, Settings then Deployment Protection, set Vercel Authentication to Disabled.
 
-Flutterwave pays its own test transfers after a few seconds, so once the keys are in, the
-Nigerian leg settles for real with nobody sending money.
+Worth knowing before flipping it: `/operator` and the confirm endpoint behind it become
+public too. On testnet with simulated money that is an acceptable trade for a demo, but it
+is a real door.
 
-**2. Sign in to Pollar on the hand-off screen and finish the transfer.**
+**2. Push the environment variables.** The project has none at all, so the deployment runs
+fully degraded. From the repo, with `.env.local` populated:
+
+```
+for k in NEXT_PUBLIC_POLLAR_PUBLISHABLE_KEY POLLAR_SECRET_KEY NEXT_PUBLIC_SETTLEMENT_ADDRESS \
+         SETTLEMENT_SECRET NEXT_PUBLIC_STELLAR_NETWORK NEXT_PUBLIC_SETTLEMENT_ASSET \
+         GEMINI_API_KEY GEMINI_MODEL FLW_SECRET_KEY NEXT_PUBLIC_FLW_PUBLIC_KEY FLW_SECRET_HASH; do
+  v=$(grep "^$k=" .env.local | cut -d= -f2-)
+  [ -n "$v" ] && printf '%s' "$v" | npx vercel env add "$k" production --force
+done
+npx vercel deploy --prod --yes
+```
+
+The redeploy is not optional: `NEXT_PUBLIC_` values are inlined at build time, so the
+existing build has empty strings baked in.
+
+Then add the deployed origin to Pollar under Build then Domains, and set the Flutterwave
+webhook to `<deployed-url>/api/funding/flutterwave/webhook` with the secret hash from
+`.env.local`.
+
+**3. Sign in to Pollar on the hand-off screen and finish the transfer.**
 
 This is the flagship requirement and it is now one click from done. The African leg runs
 end to end: intent parsed, corridor resolved, quote priced from the live rate, funding
@@ -192,6 +212,13 @@ provider logs a 403 in the console.
 | 2026-09-18 | Webhook, right hash, unknown ref | `curl` | 1 | 200, no retry storm |
 | 2026-09-18 | Webhook, right hash, wrong event | `curl` | 1 | 200 ignored |
 | 2026-09-18 | Webhook, right hash, real ref, issuer unreachable | `curl` then status read | 1 | Did not credit, stayed awaiting_payment |
+| 2026-09-18 | Production build | `npm run build` | 18 routes | Clean |
+| 2026-09-18 | Flutterwave charge, live test keys | `curl` v3 charges | 1 | Virtual account issued |
+| 2026-09-18 | Flutterwave auto settlement | `verify_by_reference` | 3 polls | successful, 250,000 NGN |
+| 2026-09-18 | Corridor with Flutterwave, first run | API, quote to status | 1 full run | Funded, but passed through `expired` |
+| 2026-09-18 | Corridor with Flutterwave, after the expiry fix | API, quote to status | 1 full run | awaiting_payment to funded, 186.4814327 USDC |
+| 2026-09-18 | Smoke after the expiry fix | `npm run smoke` | 34 checks | All passed |
+| 2026-09-18 | Deployment reachability | `curl` root and webhook | 2 | Both 302, SSO protection on |
 
 **Total automated checks passing: 34.**
 
