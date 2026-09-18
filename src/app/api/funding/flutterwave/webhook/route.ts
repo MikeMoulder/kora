@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { ledger } from '@/lib/account/ledger';
 import { store } from '@/lib/corridor/store';
 import {
   hasWebhookSecret,
@@ -32,7 +33,17 @@ export const dynamic = 'force-dynamic';
  * thirty minute intervals. So a request we have already handled, or one for
  * a reference we do not know, answers 200: both are settled outcomes and
  * retrying them would change nothing.
+ *
+ * Two kinds of money arrive here. A corridor funding reference moves a
+ * payment through its state machine. A deposit reference credits the account
+ * ledger. They are told apart by prefix rather than by guessing from the
+ * absence of a funding record, because "no record" also describes a payment
+ * created on another instance, and crediting the balance for one of those
+ * would invent money.
  */
+
+/** Deposits carry this prefix. See the deposit route. */
+const DEPOSIT_PREFIX = 'KORA-DEP-';
 
 interface WebhookBody {
   event?: string;
@@ -81,6 +92,10 @@ export async function POST(request: Request) {
 
   if (!reference || data.id === undefined) {
     return ack('Ignored a charge with no reference or id.');
+  }
+
+  if (reference.startsWith(DEPOSIT_PREFIX)) {
+    return creditDeposit(reference, data.id);
   }
 
   const record = await store.get(reference);
@@ -153,5 +168,45 @@ export function GET() {
   return NextResponse.json(
     { ok: true, detail: 'KORA Flutterwave collections webhook. POST only.' },
     { status: 200 },
+  );
+}
+
+/**
+ * A deposit into the account holder's own balance.
+ *
+ * Same rule as the corridor path: the webhook body is a claim, and only
+ * Flutterwave's verification is allowed to move money. The ledger is keyed on
+ * the reference, so a retried delivery reports success without crediting
+ * twice.
+ */
+async function creditDeposit(reference: string, id: number) {
+  const verified = await verifyTransaction(id);
+
+  if (!verified.ok) {
+    return ack(`Could not verify deposit ${reference}: ${verified.code}.`);
+  }
+
+  if (verified.data.status !== 'successful') {
+    return ack(`Deposit ${reference} is ${verified.data.status}, not successful.`);
+  }
+
+  if (verified.data.txRef !== reference) {
+    return ack(`Verified transaction points at ${verified.data.txRef}, not ${reference}.`);
+  }
+
+  const credited = await ledger.append({
+    reference,
+    at: new Date().toISOString(),
+    direction: 'credit',
+    amount: verified.data.amount,
+    currency: verified.data.currency,
+    detail: `Deposit confirmed by Flutterwave, ref ${verified.data.flwRef}.`,
+    source: 'flutterwave',
+  });
+
+  return ack(
+    credited
+      ? `Deposit ${reference} credited.`
+      : `Deposit ${reference} was already credited.`,
   );
 }
