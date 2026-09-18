@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 97
+**Commits:** 100
 
 ---
 
@@ -30,14 +30,6 @@ never run, so there is still no Stellar transaction hash to show a judge. That h
 single most valuable artefact left to produce.
 
 Walk it at `/send?intent=Send ₦250,000 to Carlos Mamani in Bolivia for the brand system.`
-
-**Provision Upstash Redis.** Vercel dashboard, project `kora`, Storage, Upstash Redis,
-create, connect to the project. It injects `KV_REST_API_URL` and `KV_REST_API_TOKEN`
-automatically, then redeploy. The adapter is written and both stores pick it up on their
-own; until then everything runs in process memory, which does not survive a restart and is
-not shared between serverless instances. The balance is the part that suffers: a funding
-reference the server forgets can be re-seeded by the client, a forgotten balance is just
-gone.
 
 Also still open, not blocking:
 
@@ -224,6 +216,13 @@ Still outstanding, and both small:
 | 2026-09-18 | Deposit to credit, browser | Receive, Add money | 1 full run | 120,000 credited, card moved to 5,015,650 |
 | 2026-09-18 | Smoke after the ledger | `npm run smoke` | 34 checks | All passed |
 | 2026-09-18 | Smoke after the Redis adapter | `npm run smoke` | 34 checks | All passed, memory fallback intact |
+| 2026-09-18 | Redis reachability | REST `/ping` | 1 | PONG |
+| 2026-09-18 | Key namespacing in a shared database | REST `keys kora:*` | 1 | Only KORA keys, 6 others untouched |
+| 2026-09-18 | Deposit against Redis | API, open to credit | 1 full run | Credited, balance 4,865,650 |
+| 2026-09-18 | Ledger idempotency on Redis | Repeat confirm | 1 | Already credited, no second entry |
+| 2026-09-18 | Funding record on Redis | API, quote to funded | 1 full run | Funded, key written and indexed |
+| 2026-09-18 | Production build with the account routes | `npm run build` | 21 routes | Clean |
+| 2026-09-18 | Cross process persistence | Localhost write, production read | 1 | Production read both entries |
 
 **Total automated checks passing: 34.**
 
@@ -421,6 +420,15 @@ arrived against a reference Flutterwave confirms. In production both paths end i
 place, a `charge.completed` verified and credited once.
 
 Storage is Upstash Redis behind the same interfaces, memory when it is not configured.
+
+The database is shared with another project of the owner's, which is why every key is
+namespaced: `kora:funding:<ref>`, `kora:funding:index`, `kora:ledger:entry:<ref>`,
+`kora:ledger:entries`. Namespacing protects against collisions, not against somebody
+flushing that database, and the free tier command quota is shared. Both are fine at this
+volume and worth knowing before anyone assumes otherwise.
+
+Proven across processes rather than asserted: a deposit made from the browser on localhost
+was read back by the production deployment from the same ledger.
 
 ### Other
 
