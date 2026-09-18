@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 119
+**Commits:** 120
 
 ---
 
@@ -241,6 +241,8 @@ Still outstanding, and both small:
 | 2026-09-18 | Avatar fallback with no files present | Browser network log | 7 portraits | Every request 404s once, monogram takes the space, no layout shift |
 | 2026-09-18 | Activity endpoint | Browser network log | `/api/account/activity` | 200, list and all three series in one response |
 | 2026-09-18 | Real ledger entries in the list | Browser | 6 rows | All six are real movements, each naming its counterparty |
+| 2026-09-18 | Portrait request deduplication | Browser resource timing | 3 unique ids across 8 draws | 3 requests, one per id, module-level cache holding |
+| 2026-09-18 | Overview layout, 390px | Browser measurement | Horizontal overflow | None, scrollWidth equals clientWidth |
 
 **Total automated checks passing: 64.** 34 from `npm run smoke`, 30 from `npm run probe:activity`.
 
