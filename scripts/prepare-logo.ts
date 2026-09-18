@@ -25,6 +25,10 @@ import { mkdir, stat } from 'node:fs/promises';
 const SOURCE = 'assets/kora-logo-original.png';
 const OUTPUT = 'public/kora-mark.png';
 
+/** The white mark arrived already transparent, so it only needs trimming. */
+const WHITE_SOURCE = 'assets/kora-logo-white.png';
+const WHITE_OUTPUT = 'public/kora-mark-white.png';
+
 /** Luminance of the background, measured from the supplied file. */
 const BACKGROUND_LUM = 12;
 /** Luminance at which a pixel counts as fully part of the mark. */
@@ -84,6 +88,32 @@ async function main() {
       `(${(100 - (after / before) * 100).toFixed(0)}% smaller)`,
   );
   console.log(`Written to ${OUTPUT}`);
+
+  await prepareWhite();
+}
+
+/**
+ * The white mark was supplied correctly: RGBA, white on fully transparent.
+ * Nothing to derive, so this only trims the margin and recompresses, which
+ * keeps both marks sized the same way at the call site.
+ */
+async function prepareWhite() {
+  const before = (await stat(WHITE_SOURCE)).size;
+
+  const out = await sharp(WHITE_SOURCE)
+    .trim({ threshold: 1 })
+    .png({ compressionLevel: 9, palette: false })
+    .toFile(WHITE_OUTPUT);
+
+  const after = (await stat(WHITE_OUTPUT)).size;
+
+  console.log(`
+White mark: ${out.width}x${out.height}`);
+  console.log(
+    `Size:   ${(before / 1024).toFixed(0)} KB to ${(after / 1024).toFixed(0)} KB ` +
+      `(${(100 - (after / before) * 100).toFixed(0)}% smaller)`,
+  );
+  console.log(`Written to ${WHITE_OUTPUT}`);
 }
 
 main().catch((err) => {
