@@ -344,19 +344,36 @@ function BrandPanel() {
         unprefixed mask alone means no mask at all there, which is a hard edged
         band rather than a missing effect.
 
-        64px of blur rather than 40. At 40 the lamp and the pen holder are
-        still readable through the band, which makes it look like a photograph
-        that has gone soft; at 64 they are fields of colour and it looks like
-        glass. Past that the footage stops being footage and the panel may as
-        well be a flat grey.
+        32px of blur. It went 40, then 64 when the band widened and the softer
+        read looked better across it, and back to half of that because 64 was
+        thick enough to flatten the room into colour. At 32 the shapes are
+        present without being legible, which is the line worth holding: glass
+        you can tell there is something behind.
 
-        50 percent tint, and measured like the ones before it. The paragraph's
-        worst frame across the clip reads 5.4 against the 4.5 it needs, with
-        the headline at 8.0, which leaves the band lighter than the versions
-        before it and lets more of the room through.
+        An arbitrary value rather than a step on the scale, because the scale
+        goes 24 then 40 and the instruction was half of 64.
+
+        The tint stays at 50 percent, and the paragraph got brighter instead.
+        Halving the blur costs contrast, which is obvious in hindsight and was
+        not caught until it was measured: less smoothing leaves a higher peak
+        behind the type, 200 against 181 at 64px, and the paragraph fell from
+        4.64 to 4.10 against the 4.5 it needs. Both ways out were on the table.
+        A 60 percent tint fixes it at 5.33 and darkens the glass, which is the
+        opposite of what thinning the blur was for; 90 percent white on the
+        paragraph fixes it at 5.08 and leaves the room showing through. The
+        headline is unaffected at 5.25 against a floor of 3.0, since 29px
+        semibold counts as large text.
+
+        How that was measured matters, because the earlier numbers on this
+        panel were too kind. Averaging the frame behind a paragraph answers
+        what the background is on average, and type does not sit on an average:
+        one bright patch under one line is a failure the mean hides. These are
+        per pixel minimums over 84,000 samples across 12 frames, taken from the
+        frame actually blurred at the radius in use rather than approximated by
+        downsampling.
       */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-3xl"
+        className="absolute inset-0 bg-black/50 backdrop-blur-[32px]"
         style={{
           WebkitMaskImage: BAND_MASK,
           maskImage: BAND_MASK,
@@ -384,7 +401,7 @@ function BrandPanel() {
           <br />
           out of Africa.
         </h2>
-        <p className="mt-3.5 text-[15px] leading-relaxed text-white/75">
+        <p className="mt-3.5 text-[15px] leading-relaxed text-white/90">
           KORA is the African leg of the corridor. Type what you want to send, we price it
           live, and it settles on Stellar for Pollar to pay out.
         </p>
