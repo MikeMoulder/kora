@@ -18,10 +18,10 @@ import {
   type RatesPayload,
   type SendDraft,
 } from './panels';
-import { Avatar, CardLabel, DirectionMark, IconButton } from './parts';
+import { Avatar, CardLabel, IconButton, StatusMark } from './parts';
 import { Flag } from '../Flag';
 import { ACCOUNT, formatNaira, relativeDay } from '@/lib/demo-data';
-import type { ActivityItem, ActivityPayload } from '@/lib/account/activity';
+import { RECENT_LIMIT, type ActivityItem, type ActivityPayload } from '@/lib/account/activity';
 
 /**
  * The account dashboard.
@@ -414,20 +414,27 @@ function Action({
   );
 }
 
-// ── Transactions ──────────────────────────────────────────────────────────
+// ── Transactions ───────────────────────────────────────────────────
 
 /**
- * Recent activity.
+ * Recent transactions.
  *
- * The reference gives every transaction its own card rather than ruling one
- * block into rows, and it is the better reading of the data: each line is a
- * separate event with its own counterparty and its own direction, so nothing
- * is gained by binding them into a single object. Separated cards also let a
- * row be hovered, and later opened, without the list shifting.
+ * Every transaction gets its own card rather than one block ruled into rows,
+ * which is the reference's reading of the data and the better one: each line
+ * is a separate event with its own counterparty and its own direction, so
+ * nothing is gained by binding them together. Separated cards also let a row
+ * be hovered without the list shifting.
+ *
+ * Three columns and nothing else. Portrait, who and what happened, how much.
+ * The direction badge that used to sit on the right is gone: the sign and the
+ * colour already say which way the money went, and a third marker saying it
+ * again was taking the space the amount wanted.
  */
 function Transactions({ activity }: { activity: ActivityPayload | null }) {
+  const rows = activity?.transactions ?? null;
+
   return (
-    <div>
+    <div className="flex h-full flex-col">
       <div className="px-1">
         <CardLabel
           action={
@@ -439,44 +446,65 @@ function Transactions({ activity }: { activity: ActivityPayload | null }) {
             </Link>
           }
         >
-          Recent activity
+          Recent transactions
         </CardLabel>
       </div>
 
       <ul className="mt-3 space-y-2">
-        {(activity?.transactions ?? []).map((tx) => (
-          <TransactionRow key={tx.id} tx={tx} />
-        ))}
+        {rows === null
+          ? Array.from({ length: RECENT_LIMIT }, (_, n) => <RowSkeleton key={n} />)
+          : rows.map((tx) => <TransactionRow key={tx.id} tx={tx} />)}
       </ul>
     </div>
   );
 }
 
 function TransactionRow({ tx }: { tx: ActivityItem }) {
-  const outgoing = tx.direction === 'out';
+  const incoming = tx.direction === 'in';
 
   return (
-    <li className="flex items-center gap-3 rounded-xl border border-rule bg-paper px-4 py-3 shadow-[0_1px_2px_rgba(15,17,16,0.03)] transition-colors hover:border-ink-ghost">
-      <Avatar id={tx.avatarId} name={tx.party} kind={tx.kind} size={38} />
+    <li className="card-row flex items-center gap-3 rounded-[18px] bg-paper px-3.5 py-2.5">
+      <Avatar id={tx.avatarId} name={tx.party} kind={tx.kind} size={44} />
 
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-medium">{tx.party}</div>
-        <div className="truncate text-[11px] text-ink-faint">
-          {tx.detail} &middot; {relativeDay(tx.at)}
+        <div className="truncate text-[14px] font-medium tracking-[-0.01em]">{tx.party}</div>
+        <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-ink-faint">
+          <span>{incoming ? 'Received' : 'Paid'}</span>
+          <StatusMark
+            real={tx.real}
+            title={`${relativeDay(tx.at)}. ${tx.detail}${tx.real ? '' : ' (opening history)'}`}
+          />
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
-        <span
-          className={cn(
-            'tabular text-[13px] font-semibold',
-            outgoing ? 'text-loss' : 'text-gain',
-          )}
-        >
-          {formatNaira(tx.amount, { signed: true })}
-        </span>
-        <DirectionMark direction={tx.direction} />
+      <span
+        className={cn(
+          'tabular shrink-0 text-[14px] font-semibold tracking-[-0.01em]',
+          incoming ? 'text-gain' : 'text-loss',
+        )}
+      >
+        {formatNaira(tx.amount, { signed: true })}
+      </span>
+    </li>
+  );
+}
+
+/**
+ * What a row looks like before the feed answers.
+ *
+ * Drawn at the real row's dimensions rather than as a shorter bar, so the
+ * column does not jump when the data lands. The list is the tallest thing on
+ * the overview and a reflow there moves the whole card.
+ */
+function RowSkeleton() {
+  return (
+    <li className="card-row flex items-center gap-3 rounded-[18px] bg-paper px-3.5 py-2.5">
+      <span className="h-11 w-11 shrink-0 rounded-full bg-paper-sunk" />
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <span className="block h-3 w-1/2 rounded bg-paper-sunk" />
+        <span className="block h-2.5 w-1/4 rounded bg-paper-sunk" />
       </div>
+      <span className="h-3.5 w-20 shrink-0 rounded bg-paper-sunk" />
     </li>
   );
 }

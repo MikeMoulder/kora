@@ -123,6 +123,45 @@ body {
     var(--color-paper);
 }
 
+/* ── Card edges ───────────────────────────────────────────
+ * Two elevations, and only two. Every white object on the mint surface is one
+ * of them, so the page has a grammar of depth rather than a collection of
+ * one-off shadow strings copied between components.
+ *
+ * Both lead with a near-invisible hairline and carry the separation in a wide,
+ * soft shadow. A card defined by its border reads as a diagram; a card defined
+ * by its shadow reads as an object sitting on something, which is what the
+ * reference does and what the mint wash underneath exists to support.
+ *
+ * Ink is 15 17 16. Stated in rgba because these are washes of it.
+ */
+
+/* A row in a list. Small objects, stacked, so the shadow stays tight. */
+.card-row {
+  border: 1px solid rgba(15, 17, 16, 0.045);
+  box-shadow:
+    0 1px 2px rgba(15, 17, 16, 0.04),
+    0 8px 18px -12px rgba(15, 17, 16, 0.22);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.card-row:hover {
+  border-color: var(--color-ink-ghost);
+  box-shadow:
+    0 1px 2px rgba(15, 17, 16, 0.05),
+    0 12px 26px -12px rgba(15, 17, 16, 0.28);
+}
+
+/* A panel. Larger objects that hold their own content, so the shadow spreads. */
+.card-block {
+  border: 1px solid rgba(15, 17, 16, 0.05);
+  box-shadow:
+    0 1px 2px rgba(15, 17, 16, 0.04),
+    0 16px 34px -20px rgba(15, 17, 16, 0.3);
+}
+
 /* ── Ownership language ──────────────────────────────────────────────────
  * Three classes carrying the rule above, so no component restates a border
  * and the language cannot drift from screen to screen.

@@ -233,33 +233,68 @@ function openingHistory(now: number): ActivityItem[] {
 /**
  * A ledger entry, read as a row of activity.
  *
- * The entry carries the counterparty when whatever wrote it knew one, which
- * is every payment made since this shape existed. Entries already sitting in
- * Redis from before that do not, so the fallback names the source instead of
- * guessing a person. "Flutterwave deposit" is a true statement about an old
- * credit; inventing a payer for it would not be.
+ * The entry carries the counterparty when whatever wrote it knew one, which is
+ * every payment made since that became a field. Older entries do not, so the
+ * name is recovered from the wording and, failing that, the rail is named
+ * rather than a person invented.
  */
 function fromLedger(entry: LedgerEntry): ActivityItem {
   const outgoing = entry.direction === 'debit';
-
-  const fallbackParty =
-    entry.source === 'flutterwave'
-      ? 'Flutterwave deposit'
-      : outgoing
-        ? 'Corridor payment'
-        : 'Account credit';
+  const derived = partyFromDetail(entry);
+  const recovered = {
+    party: entry.party ?? derived.party,
+    kind: entry.partyKind ?? derived.kind,
+  };
 
   return {
     id: entry.reference,
-    party: entry.party ?? fallbackParty,
-    kind: entry.partyKind ?? (entry.party ? 'person' : 'business'),
+    party: recovered.party,
+    kind: recovered.kind,
     direction: outgoing ? 'out' : 'in',
     amount: outgoing ? -entry.amount : entry.amount,
     detail: entry.detail,
     at: entry.at,
-    avatarId: entry.avatarId ?? null,
+    avatarId: entry.avatarId ?? avatarIdFor(recovered.party),
     real: true,
   };
+}
+
+/**
+ * Read the counterparty back out of an older entry's wording.
+ *
+ * Entries written before the party was a field still say who they were for,
+ * in a sentence this code produced and therefore knows the shape of. Parsing
+ * it back recovers a real name for every payment already on the ledger,
+ * which is the difference between a demo whose history reads "Corridor
+ * payment" six times and one that reads like an account.
+ *
+ * It is a fallback, not a parser to build on. Anything that does not match
+ * falls through to naming the rail, which is a true statement about the
+ * movement. Guessing a person from a sentence that did not contain one would
+ * not be.
+ */
+function partyFromDetail(entry: LedgerEntry): { party: string; kind: 'person' | 'business' } {
+  // "Payment to Carlos Mamani in Bolivia, logo and brand system."
+  const payment = /^Payment to (.+?) in [^,.]+[,.]/.exec(entry.detail);
+  if (payment) return { party: payment[1], kind: 'person' };
+
+  if (entry.detail.startsWith('Reversal of ')) {
+    return { party: 'Reversed payment', kind: 'business' };
+  }
+
+  if (entry.source === 'flutterwave' || entry.detail.includes('Flutterwave')) {
+    return { party: 'Flutterwave deposit', kind: 'business' };
+  }
+
+  return entry.direction === 'debit'
+    ? { party: 'Corridor payment', kind: 'business' }
+    : { party: 'Account credit', kind: 'business' };
+}
+
+/** The saved beneficiary's portrait, when the counterparty is one of them. */
+function avatarIdFor(party: string): string | null {
+  const wanted = party.trim().toLowerCase();
+  return BENEFICIARIES.find((b) => b.name.toLowerCase() === wanted)?.avatarId ?? null;
 }
 
 // ── Bucketing ─────────────────────────────────────────────────────────────

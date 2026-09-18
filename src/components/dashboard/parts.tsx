@@ -59,6 +59,17 @@ export function Monogram({
  * takes the space, with no layout shift: the disc is the same size either
  * way and is already painted underneath.
  */
+/**
+ * Portraits already known to be absent.
+ *
+ * Module scope rather than component state, because the same person is drawn
+ * in several places at once: the rail, the header, a transaction row, the
+ * beneficiary book. Per-instance state means each of those requests the same
+ * missing file and each logs its own 404. One shared set means the first
+ * failure is the last request.
+ */
+const missing = new Set<string>();
+
 export function Avatar({
   id,
   name,
@@ -74,7 +85,7 @@ export function Avatar({
   className?: string;
 }) {
   const [failed, setFailed] = useState(false);
-  const usePortrait = Boolean(id) && !failed;
+  const usePortrait = Boolean(id) && !failed && !missing.has(id as string);
 
   return (
     <span
@@ -93,7 +104,10 @@ export function Avatar({
           height={size}
           loading="lazy"
           decoding="async"
-          onError={() => setFailed(true)}
+          onError={() => {
+            if (id) missing.add(id);
+            setFailed(true);
+          }}
           className="absolute inset-0 h-full w-full rounded-full object-cover"
         />
       )}
@@ -145,36 +159,52 @@ export function CardLabel({
 }) {
   return (
     <div className="flex items-center justify-between">
-      <h2 className="text-[13px] font-semibold tracking-[-0.01em]">{children}</h2>
+      <h2 className="text-[14px] font-semibold tracking-[-0.015em]">{children}</h2>
       {action}
     </div>
   );
 }
 
 /**
- * Direction marker for a transaction row.
+ * The small circular mark that follows "Paid" or "Received" on a row.
  *
- * The reference used green for money in and red for money out. Monochrome has
- * to say the same thing without hue, so money in is an outlined disc with a
- * downward arrow and money out is filled with an upward one. Sign and weight
- * carry it, and it still works printed or for a colour blind reader.
+ * Taken from the reference, where it sits after the status word as a quiet
+ * second glyph. Here it carries something rather than decorating: it is the
+ * row's provenance, and hovering it gives the timestamp and what the movement
+ * was for.
+ *
+ * Weight says which half of the ledger a row came from. Solid ink is a
+ * movement that actually happened, hairline is opening history. That is the
+ * same fill and outline rule the corridor rail uses for KORA's leg and
+ * Pollar's, applied to the only other place in the app where real and sample
+ * data sit in one list.
  */
-export function DirectionMark({ direction }: { direction: 'in' | 'out' }) {
-  const incoming = direction === 'in';
-
+export function StatusMark({
+  real,
+  title,
+}: {
+  real: boolean;
+  title: string;
+}) {
   return (
     <span
-      aria-hidden
+      title={title}
       className={cn(
-        'inline-flex h-5 w-5 items-center justify-center rounded-full',
-        incoming ? 'border border-gain bg-paper text-gain' : 'bg-loss text-paper',
+        'inline-flex shrink-0 items-center justify-center align-[-1px]',
+        real ? 'text-ink' : 'text-ink-ghost',
       )}
     >
-      <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none">
+      <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" aria-hidden>
         <path
-          d={incoming ? 'M6 2.5v7M3 6.5l3 3 3-3' : 'M6 9.5v-7M3 5.5l3-3 3 3'}
+          d="M10 6a4 4 0 1 1-1.4-3.05"
           stroke="currentColor"
-          strokeWidth="1.6"
+          strokeWidth={real ? 1.7 : 1.3}
+          strokeLinecap="round"
+        />
+        <path
+          d="M10.4 1.1v2.2H8.2"
+          stroke="currentColor"
+          strokeWidth={real ? 1.7 : 1.3}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
