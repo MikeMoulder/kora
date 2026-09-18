@@ -18,6 +18,7 @@ import {
   BASE_FEE,
   Horizon,
   Keypair,
+  Memo,
   Networks,
   Operation,
   TransactionBuilder,
@@ -108,6 +109,19 @@ export type PayoutResult =
  * Amounts are formatted to seven decimal places because that is Stellar's
  * precision, and a longer string is rejected outright rather than rounded.
  *
+ * The memo is the KORA reference, and it goes on the transaction. It used to
+ * be accepted as an argument and then quietly dropped, which meant the on-chain
+ * record and the account's record had nothing in common: `settle` passed the
+ * reference in, and the only thing tying the two together afterwards was a row
+ * in our own database saying so. A remittance receipt whose proof cannot be
+ * matched back to the payment without trusting us is most of the way back to
+ * being a screenshot.
+ *
+ * Truncated to Stellar's twenty-eight byte limit rather than left to be
+ * rejected. References are fifteen characters, so this never fires today; it
+ * exists so a longer prefix one day costs a shortened memo rather than a failed
+ * payment that has already debited somebody.
+ *
  * Every failure is returned rather than thrown. The caller has already debited
  * a person's balance by the time this runs, so it needs to know what went
  * wrong in order to reverse it, not catch an exception and guess.
@@ -133,6 +147,9 @@ export async function payBeneficiary(
     }).addOperation(
       Operation.payment({ destination, asset: asset(), amount: value }),
     );
+
+    const tag = memo?.trim().slice(0, 28);
+    if (tag) builder.addMemo(Memo.text(tag));
 
     const tx = builder.setTimeout(90).build();
     tx.sign(signer);

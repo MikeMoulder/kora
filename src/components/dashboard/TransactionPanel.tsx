@@ -9,11 +9,24 @@
  * stopped on. This panel is where the stopping happens.
  *
  * It invents nothing. Every line is either read straight off the activity item
- * or joined to a scheduled payment the dashboard has already fetched, and a
- * fact the account does not hold is left out rather than filled with a
- * plausible looking blank. That is why an opening history row shows fewer
- * lines than a real one: there is genuinely less to say about money that never
- * moved.
+ * or off a record joined to it by reference, and a fact the account does not
+ * hold is left out rather than filled with a plausible looking blank.
+ *
+ * Two records can be joined, and which one arrives says nothing about how much
+ * the screen should show:
+ *
+ *   scheduled payment  from the schedule store, via the dashboard
+ *   receipt            from the receipt store, alongside the activity row
+ *
+ * They are folded into one shape before anything is rendered. A payment sent
+ * on the spot and one held until Friday are the same event with different
+ * timing, and the panel used to treat them as different kinds of thing purely
+ * because only one of them had a record to read. The scheduled one showed its
+ * route and its hash; the immediate one showed four lines and a sentence.
+ *
+ * What the timing genuinely changes is small and is the only thing still
+ * branched on: a payment that was asked for and sent in the same instant has
+ * no "asked for" and no "due" worth printing, so it prints neither.
  *
  * The Stellar block is the point of the whole screen. A remittance receipt
  * that cannot be checked by the person holding it is a screenshot, and the one
@@ -25,8 +38,9 @@ import { ArrowUpRight } from 'lucide-react';
 import { Avatar } from './parts';
 import { Flag } from '../Flag';
 import { cn } from '@/lib/utils';
-import { formatNaira } from '@/lib/demo-data';
+import { BENEFICIARIES, formatNaira } from '@/lib/demo-data';
 import type { ActivityItem } from '@/lib/account/activity';
+import type { PaymentOutcome } from '@/lib/payments/receipt';
 import type { ScheduledPaymentShape } from './panels';
 
 /**
@@ -35,14 +49,13 @@ import type { ScheduledPaymentShape } from './panels';
  * References are minted by this codebase, so their prefixes are a fact rather
  * than a guess: `KORA-PAY` is a send made on the spot, `KORA-SCH` is one that
  * was held and released later, `KORA-DEP` is money arriving. Anything that
- * matches none of them is opening history, and saying so is more useful than
- * inventing a category for it.
+ * matches none of them is still a movement that happened, so it is named as
+ * one rather than given an invented category.
  */
 function classify(tx: ActivityItem): {
-  kind: 'payment' | 'scheduled' | 'deposit' | 'reversal' | 'sample';
+  kind: 'payment' | 'scheduled' | 'deposit' | 'reversal';
   label: string;
 } {
-  if (!tx.real) return { kind: 'sample', label: 'Opening history, sample data' };
   if (tx.id.endsWith('-REVERSAL')) return { kind: 'reversal', label: 'Money put back' };
   if (tx.id.startsWith('KORA-SCH')) return { kind: 'scheduled', label: 'Scheduled payment' };
   if (tx.id.startsWith('KORA-PAY')) return { kind: 'payment', label: 'Payment' };
@@ -55,6 +68,140 @@ const SOURCE_WORDS: Record<NonNullable<ActivityItem['source']>, string> = {
   flutterwave: 'Flutterwave, our Nigerian collections partner',
   corridor: 'The KORA corridor engine',
   simulated: 'Simulated, for the demo',
+};
+
+/**
+ * The two records, folded into one.
+ *
+ * Every field is optional because the two sources genuinely know different
+ * amounts, and a payment made before either store existed knows almost
+ * nothing. Nothing here is defaulted: an absent field means the account does
+ * not hold that fact, and the panel skips the line rather than printing a
+ * blank one.
+ */
+interface PaymentRecord {
+  route: { country: string; countryName: string } | null;
+  /** Null for a payment sent on the spot. There was no waiting to describe. */
+  createdAt: string | null;
+  dueAt: string | null;
+  origin: 'agent' | 'form' | null;
+  note: string | null;
+  outcome: PaymentOutcome | null;
+}
+
+/**
+ * Where a payment was going, when nothing joined to it says so.
+ *
+ * Read out of the entry's own wording, which named the destination in a
+ * sentence this codebase wrote and therefore knows the shape of:
+ *
+ *   Payment to Carlos Mamani in Bolivia, logo and brand system.
+ *   Held for Carlos Mamani in Bolivia, logo and brand system. Due 18 Sept...
+ *
+ * The obvious shortcut is to look the recipient up in the beneficiary book and
+ * take the country from there. That is wrong, and this ledger proves it: the
+ * same contractor has been paid in Bolivia twice and in Brazil once. The book
+ * says where somebody usually is; the entry says where this payment actually
+ * went, and a receipt has to answer the second question.
+ *
+ * Anchored to the two openings this codebase writes rather than hunting for
+ * the word "in" anywhere in the line, so a note that happens to contain one
+ * cannot be read as a country.
+ *
+ * A fallback, not a parser to build on. Payments made from here on carry a
+ * receipt with the destination recorded as an ISO code, and this exists for
+ * the ones made before that.
+ */
+const DESTINATION = /^(?:Payment to|Held for) .+? in ([^,.]+)[,.]/;
+
+/**
+ * The ISO code for a country name, from the book rather than a hardcoded list.
+ *
+ * Derived from the beneficiaries, which is where every destination this
+ * account has ever paid into came from. A name it cannot resolve gets no
+ * route at all rather than a route with a missing flag in it: half a corridor
+ * drawn on a receipt reads as a rendering bug, and the payment's own sentence
+ * is printed underneath either way.
+ */
+function codeForCountry(name: string): string | null {
+  const wanted = name.trim().toLowerCase();
+  return BENEFICIARIES.find((b) => b.countryName.toLowerCase() === wanted)?.country ?? null;
+}
+
+function routeFromDetail(detail: string): { country: string; countryName: string } | null {
+  const found = DESTINATION.exec(detail);
+  if (!found) return null;
+
+  const countryName = found[1].trim();
+  const country = codeForCountry(countryName);
+
+  return country ? { country, countryName } : null;
+}
+
+/**
+ * One record for the panel, whichever store answered.
+ *
+ * The scheduled payment wins where both exist, which they never currently do:
+ * it is the richer of the two, carrying the wait as well as the delivery.
+ */
+function fold(
+  tx: ActivityItem,
+  scheduled?: ScheduledPaymentShape | null,
+): PaymentRecord {
+  if (scheduled) {
+    return {
+      route: {
+        country: scheduled.recipient.country,
+        countryName: scheduled.recipient.countryName,
+      },
+      createdAt: scheduled.createdAt,
+      dueAt: scheduled.dueAt,
+      origin: scheduled.origin,
+      note: scheduled.note,
+      outcome: scheduled.outcome,
+    };
+  }
+
+  const receipt = tx.receipt;
+
+  if (receipt) {
+    return {
+      route: {
+        country: receipt.recipient.country,
+        countryName: receipt.recipient.countryName,
+      },
+      createdAt: null,
+      dueAt: null,
+      origin: receipt.origin,
+      note: receipt.note,
+      outcome: receipt.outcome,
+    };
+  }
+
+  /*
+   * Nothing joined. This is every payment made before receipts were written,
+   * and the route is the one thing still recoverable, from the beneficiary
+   * book rather than from anything the payment itself left behind.
+   *
+   * The hash is not recoverable and no attempt is made to find one. It was
+   * never stored, and matching a Stellar transaction back to a reference by
+   * amount and rough timing would eventually print somebody else's hash on
+   * this receipt. A missing proof is a gap; a wrong proof is a lie.
+   */
+  return {
+    route: routeFromDetail(tx.detail),
+    createdAt: null,
+    dueAt: null,
+    origin: null,
+    note: null,
+    outcome: null,
+  };
+}
+
+/** Who asked for it, in words. */
+const ORIGIN_WORDS: Record<'agent' | 'form', string> = {
+  agent: 'Kora Agent, from a sentence',
+  form: 'The send form',
 };
 
 /** Full date and time, spelled out. The rows upstairs already say "2 days ago". */
@@ -91,7 +238,22 @@ export function TransactionPanel({
 }) {
   const incoming = tx.direction === 'in';
   const { kind, label } = classify(tx);
-  const outcome = scheduled?.outcome ?? null;
+
+  const record = fold(tx, scheduled);
+  const { outcome } = record;
+
+  /*
+   * Whether this movement is the kind that has a route at all.
+   *
+   * A deposit arrives from a Nigerian bank and stops; a reversal is money
+   * coming back the way it went. Neither crosses the corridor, so neither gets
+   * a corridor drawn on it however much the rest of the record knows.
+   */
+  const outbound = kind === 'payment' || kind === 'scheduled';
+
+  /* Both halves of the timing, or neither. An immediate send has no wait. */
+  const waited = record.createdAt !== null && record.dueAt !== null;
+  const hasTiming = waited || record.origin !== null || record.note !== null;
 
   return (
     <div className="flex h-full flex-col">
@@ -131,9 +293,6 @@ export function TransactionPanel({
         <Line label="Direction">{incoming ? 'Money in' : 'Money out'}</Line>
         <Line label="Counterparty">{tx.party}</Line>
         {tx.source && <Line label="Recorded by">{SOURCE_WORDS[tx.source]}</Line>}
-        <Line label="Record">
-          {tx.real ? 'A movement that actually happened' : 'Opening history, not a real movement'}
-        </Line>
       </dl>
 
       <p className="mt-4 text-[11.5px] leading-relaxed text-ink-muted">{tx.detail}</p>
@@ -143,31 +302,38 @@ export function TransactionPanel({
         *
         * Every payment in this app funds through Nigeria and settles in the
         * destination through Pollar, which is a fact about the corridor rather
-        * than about this row. Printing it on a deposit or on a piece of
-        * opening history would be printing it because it fits, not because it
-        * is true.
+        * than about this row. Printing it on a deposit would be printing it
+        * because it fits, not because it is true.
         */}
-      {(kind === 'payment' || kind === 'scheduled') && scheduled && (
+      {outbound && record.route && (
         <div className="mt-4 rounded-xl border border-rule px-3 py-2.5">
           <div className="text-[10px] uppercase tracking-[0.06em] text-ink-faint">Route</div>
           <div className="mt-1.5 flex items-center gap-2 text-xs">
             <Flag code="NG" />
             <span>Nigeria, bank transfer</span>
             <span className="text-ink-ghost">&rarr;</span>
-            <Flag code={scheduled.recipient.country} />
-            <span>{scheduled.recipient.countryName}, via Pollar</span>
+            <Flag code={record.route.country} />
+            <span>{record.route.countryName}, via Pollar</span>
           </div>
         </div>
       )}
 
-      {scheduled && (
+      {/*
+        * When it was asked for, when it went, and who asked.
+        *
+        * "Asked for" and "Due" are printed only for a payment that waited. On
+        * one sent the moment it was asked for they would be the same timestamp
+        * twice, which reads as a screen padding itself out; the instant is
+        * already at the top of the panel under the amount.
+        */}
+      {hasTiming && (
         <dl className="mt-3 divide-y divide-rule rounded-xl border border-rule">
-          <Line label="Asked for">{fullWhen(scheduled.createdAt)}</Line>
-          <Line label="Due">{fullWhen(scheduled.dueAt)}</Line>
-          <Line label="Requested by">
-            {scheduled.origin === 'agent' ? 'Kora Agent, from a sentence' : 'The send form'}
-          </Line>
-          {scheduled.note && <Line label="Note">{scheduled.note}</Line>}
+          {waited && <Line label="Asked for">{fullWhen(record.createdAt!)}</Line>}
+          {waited && <Line label="Due">{fullWhen(record.dueAt!)}</Line>}
+          {record.origin && (
+            <Line label="Requested by">{ORIGIN_WORDS[record.origin]}</Line>
+          )}
+          {record.note && <Line label="Note">{record.note}</Line>}
         </dl>
       )}
 
@@ -213,14 +379,6 @@ export function TransactionPanel({
       {outcome && !outcome.hash && outcome.message && (
         <p className="mt-4 rounded-xl border border-rule px-3 py-2.5 text-[11.5px] leading-relaxed text-ink-muted">
           {outcome.message}
-        </p>
-      )}
-
-      {!tx.real && (
-        <p className="mt-4 text-[10px] leading-relaxed text-ink-faint">
-          This row is part of the account&rsquo;s opening history. It is generated from a fixed
-          seed so the page has a year of shape behind it, and it is marked here rather than
-          left to look like a payment somebody made.
         </p>
       )}
     </div>

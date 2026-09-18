@@ -2,18 +2,22 @@
  * The account's activity: what moved, when, and which way.
  *
  * This replaces the two hardcoded arrays the dashboard used to read from. It
- * is the same shape the balance already takes, and for the same reason: an
- * opening history that is fixed and labelled as sample data, with everything
- * that actually happened appended on top.
+ * is built from two halves:
  *
- *   opening history  invented, deterministic, twelve months deep
+ *   opening history  invented, deterministic, five years deep
  *   ledger entries   real movements, from the corridor and from Flutterwave
  *
- * Both feed one list, and the list feeds both the transaction rows and the
- * spend chart. That matters more than it sounds: when those were two separate
- * constants, a payment could go out through the corridor, leave the balance,
- * and appear in neither. Now a single send lands in the rows and moves the
- * chart, because there is only one set of facts for both to read.
+ * They do not reach the same places. The rows the interface lists are real
+ * movements and nothing else, because a transaction list is a claim about
+ * money that moved and an invented row in it is a false one however carefully
+ * it is labelled. The opening history stays behind the spend chart, which is
+ * asking a different question: what does a year of this account look like.
+ * A shape is allowed to be illustrative in a way a receipt is not.
+ *
+ * Both halves still come off one sorted list, which is what keeps them
+ * honest about each other: a payment made a moment ago sits at the top of the
+ * rows and inside today's column at the same instant, because there is only
+ * one set of facts underneath both.
  *
  * Nothing here is generated with `Math.random`. The opening history comes out
  * of a seeded generator, so the same day produces the same history on every
@@ -23,6 +27,7 @@
  */
 
 import type { LedgerEntry } from './ledger';
+import type { PaymentReceipt } from '@/lib/payments/receipt';
 import { BENEFICIARIES, INCOME_SOURCES } from '@/lib/demo-data';
 
 export type ActivityDirection = 'in' | 'out';
@@ -44,20 +49,35 @@ export interface ActivityItem {
    */
   avatarId: string | null;
   /**
-   * True when this came off the ledger rather than the opening history. The
-   * interface marks these, because the distinction between "we invented this
-   * so the page has something on it" and "this money actually moved" is the
-   * whole argument of the project.
+   * True when this came off the ledger rather than the opening history.
+   *
+   * Every item the payload lists has this set. It is kept as a field rather
+   * than dropped because the two halves share one list on the way to the
+   * spend chart, and this is what `buildActivity` filters the rows on.
    */
   real: boolean;
   /**
    * Who told us this movement happened, carried straight off the ledger.
    *
-   * Only real entries have one. The opening history was invented by this file,
-   * so it has no source and the detail view says so rather than naming a
-   * partner that was never involved.
+   * Only real entries have one, which is every entry that reaches the rows.
+   * The opening history was invented by this file and has no source, which is
+   * one more reason it is not something to list as a movement.
    */
   source?: LedgerEntry['source'];
+  /**
+   * What settlement left behind, for a payment that was sent on the spot.
+   *
+   * Joined on the reference rather than stored on the entry, because the debit
+   * is written before the money is sent and the ledger is append-only. There
+   * is nothing to go back and amend, so the half that is only known afterwards
+   * lives in its own record and is read alongside.
+   *
+   * Absent on deposits, on reversals, on scheduled payments, which carry the
+   * same facts in the schedule store, and on every payment made before
+   * receipts existed. The detail panel shows what is here and says nothing
+   * where there is nothing.
+   */
+  receipt?: PaymentReceipt;
 }
 
 // ── Spend series ──────────────────────────────────────────────────────────
@@ -90,10 +110,17 @@ export interface SpendSeries {
 }
 
 export interface ActivityPayload {
-  /** Newest first, capped at `HISTORY_LIMIT`. The card shows the first few. */
+  /**
+   * Real movements, newest first, capped at `HISTORY_LIMIT`. The card shows
+   * the first few. Opening history is not in here; it only shapes `spend`.
+   */
   transactions: ActivityItem[];
   spend: Record<SpendRange, SpendSeries>;
-  /** How many of the transactions are real rather than opening history. */
+  /**
+   * How many real movements the account has, before `HISTORY_LIMIT` takes the
+   * newest few. Zero is the honest answer on a cold start, and the interface
+   * says so rather than filling the list with movements nobody made.
+   */
   realCount: number;
 }
 
@@ -145,12 +172,12 @@ function tidy(amount: number): number {
 }
 
 /**
- * Twelve months and change of invented movements.
+ * Five years and change of invented movements, for the spend chart alone.
  *
- * Long enough that the yearly range has twelve real columns to draw rather
- * than a run of zeroes with a spike at the end. Outbound goes to the
- * beneficiary book, so a row in the chart and a row in the list are about the
- * same people the rest of the app knows.
+ * Long enough that the yearly range has sixty real columns to draw rather
+ * than a run of zeroes with a spike at the end. None of this is listed as a
+ * transaction: it exists so the chart has a year of shape behind it, which is
+ * a statement about the account's rhythm rather than about any one payment.
  */
 function openingHistory(now: number): ActivityItem[] {
   const items: ActivityItem[] = [];
@@ -250,7 +277,7 @@ function openingHistory(now: number): ActivityItem[] {
  * name is recovered from the wording and, failing that, the rail is named
  * rather than a person invented.
  */
-function fromLedger(entry: LedgerEntry): ActivityItem {
+function fromLedger(entry: LedgerEntry, receipt?: PaymentReceipt): ActivityItem {
   const outgoing = entry.direction === 'debit';
   const derived = partyFromDetail(entry);
   const recovered = {
@@ -269,6 +296,7 @@ function fromLedger(entry: LedgerEntry): ActivityItem {
     avatarId: entry.avatarId ?? avatarIdFor(recovered.party),
     real: true,
     source: entry.source,
+    ...(receipt ? { receipt } : {}),
   };
 }
 
@@ -427,6 +455,9 @@ export const RECENT_LIMIT = 4;
  * when the panel opens: the rows are already computed, they are small, and a
  * second request for a list the server has just built in memory would be a
  * round trip to save about two kilobytes.
+ *
+ * A ceiling rather than a target. The list is as long as the account's real
+ * history and no longer.
  */
 export const HISTORY_LIMIT = 30;
 
@@ -437,20 +468,35 @@ export const HISTORY_LIMIT = 30;
  * by time, so a payment made a moment ago sits at the top of the rows and
  * inside today's column at the same instant. There is no second path that
  * could disagree with the first.
+ *
+ * The rows are then filtered down to the real half. The chart is not, because
+ * the two are answering different questions and only one of them is a list of
+ * things that happened.
  */
 export function buildActivity(
   entries: LedgerEntry[],
   currency = 'NGN',
   now = Date.now(),
+  /**
+   * Receipts by reference, when the caller has read them.
+   *
+   * Passed in rather than fetched, so this stays a pure function of what it is
+   * given and the route keeps the only await. An empty map is the honest
+   * default: every row still renders, exactly as it did before receipts
+   * existed.
+   */
+  receipts: Record<string, PaymentReceipt> = {},
 ): ActivityPayload {
-  const real = entries.filter((entry) => entry.currency === currency).map(fromLedger);
+  const real = entries
+    .filter((entry) => entry.currency === currency)
+    .map((entry) => fromLedger(entry, receipts[entry.reference]));
 
   const items = [...openingHistory(now), ...real]
     .filter((item) => Date.parse(item.at) <= now)
     .sort((a, b) => b.at.localeCompare(a.at));
 
   return {
-    transactions: items.slice(0, HISTORY_LIMIT),
+    transactions: items.filter((item) => item.real).slice(0, HISTORY_LIMIT),
     spend: {
       daily: seriesFor(items, 'daily', now),
       weekly: seriesFor(items, 'weekly', now),

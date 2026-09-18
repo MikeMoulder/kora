@@ -21,7 +21,7 @@ import {
   type SendDraft,
 } from './panels';
 import { SchedulePanel, useSchedule } from './SchedulePanel';
-import { Avatar, CardLabel, IconButton, RowSkeleton, TransactionRow } from './parts';
+import { Avatar, CardLabel, EmptyRows, IconButton, RowSkeleton, TransactionRow } from './parts';
 import { TransactionPanel } from './TransactionPanel';
 import { Flag } from '../Flag';
 import { ACCOUNT, formatNaira, relativeDay } from '@/lib/demo-data';
@@ -545,6 +545,10 @@ function Action({
  * The direction badge that used to sit on the right is gone: the sign and the
  * colour already say which way the money went, and a third marker saying it
  * again was taking the space the amount wanted.
+ *
+ * Only real movements are listed. The account's invented opening history
+ * shapes the spend chart and stops there, because a chart is an illustration
+ * of a rhythm and a transaction row is a receipt.
  */
 function Transactions({
   activity,
@@ -576,11 +580,17 @@ function Transactions({
       </div>
 
       <ul className="mt-3 space-y-2">
-        {rows === null
-          ? Array.from({ length: RECENT_LIMIT }, (_, n) => <RowSkeleton key={n} index={n} />)
-          : rows.map((tx, n) => (
-              <TransactionRow key={tx.id} tx={tx} index={n} onSelect={() => onSelect(tx)} />
-            ))}
+        {rows === null ? (
+          Array.from({ length: RECENT_LIMIT }, (_, n) => <RowSkeleton key={n} index={n} />)
+        ) : rows.length === 0 ? (
+          <EmptyRows>
+            Nothing has moved yet. Money you send or receive shows up here.
+          </EmptyRows>
+        ) : (
+          rows.map((tx, n) => (
+            <TransactionRow key={tx.id} tx={tx} index={n} onSelect={() => onSelect(tx)} />
+          ))
+        )}
       </ul>
     </div>
   );

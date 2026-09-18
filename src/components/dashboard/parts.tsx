@@ -243,7 +243,7 @@ export function TransactionRow({
           * card this spare.
           */}
         <div
-          title={`${when}. ${tx.detail}${tx.real ? '' : ' (opening history)'}`}
+          title={`${when}. ${tx.detail}`}
           className="mt-0.5 w-fit truncate text-[11.5px] text-ink-faint"
         >
           {incoming ? 'Received' : 'Paid'}
@@ -286,6 +286,26 @@ export function TransactionRow({
       ) : (
         body
       )}
+    </li>
+  );
+}
+
+/**
+ * What the list says when the account has not done anything yet.
+ *
+ * A heading with nothing under it reads as a list that failed to load, which
+ * is the one thing this is not: the account is new and the honest answer is
+ * that there is nothing to show. Drawn at a row's own width and sunk into the
+ * card, so it reads as a placeholder rather than as a row somebody could click.
+ *
+ * It replaced a list of invented transactions. Those were removed because a
+ * transaction row is a claim that money moved, and an empty list is a better
+ * thing to show than a full one that is not true.
+ */
+export function EmptyRows({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="card-row rounded-[18px] border border-dashed border-rule px-3.5 py-5 text-center text-[11.5px] leading-relaxed text-ink-faint">
+      {children}
     </li>
   );
 }

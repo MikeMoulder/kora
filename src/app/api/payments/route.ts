@@ -5,6 +5,7 @@ import { quote as quoteCorridor } from '@/lib/corridor/engine';
 import { hasTreasury, treasuryBalance } from '@/lib/stellar/treasury';
 import { SETTLEMENT_ASSET } from '@/lib/pollar/config';
 import { CORRIDOR, avatarIdFor, callerOrigin, settle } from '@/lib/payments/settle';
+import { recordReceipt } from '@/lib/payments/receipt-store';
 import { fail, ok, readJson } from '@/lib/api';
 
 export const runtime = 'nodejs';
@@ -36,6 +37,13 @@ export const dynamic = 'force-dynamic';
  * Nobody signs in to anything. The beneficiary's wallet is created through
  * Pollar's Server API, which needs no human, so a contractor in Bolivia gets a
  * real non-custodial Stellar wallet without knowing what Stellar is.
+ *
+ * A fifth step writes a receipt. It is not part of the corridor and it is
+ * deliberately outside the failure path: the money has already moved by then,
+ * and a store that cannot be reached should cost the detail panel its route
+ * rather than turn a delivered payment into an error. Without it an immediate
+ * send is the only payment in the app that cannot show where it went once the
+ * browser that made it has moved on.
  */
 
 interface SendBody {
@@ -46,6 +54,14 @@ interface SendBody {
   account?: string;
   amount?: number;
   note?: string;
+  /**
+   * Who asked for it, for the receipt.
+   *
+   * The same field `/api/schedule` takes and for the same reason. Not trusted
+   * for anything but a sentence on the detail panel, so an absent or unknown
+   * value reads as the send form rather than being refused.
+   */
+  origin?: 'agent' | 'form';
 }
 
 export async function POST(request: Request) {
@@ -128,6 +144,46 @@ export async function POST(request: Request) {
       amount,
       note: body.note,
       origin: callerOrigin(request),
+    });
+
+    /*
+     * The receipt, written for both endings.
+     *
+     * A payment that failed and was reversed is still something somebody will
+     * open, and "the naira has been put back, here is why" is the answer that
+     * screen should have. Writing it only on success would leave the failures
+     * looking exactly like the plain rows this was built to replace.
+     */
+    const settledAt = new Date().toISOString();
+
+    await recordReceipt({
+      reference,
+      at: new Date().toISOString(),
+      recipient: {
+        name,
+        country,
+        countryName: countryName ?? country,
+        account: body.account?.trim() || null,
+      },
+      amount,
+      currency: ACCOUNT.currency,
+      note: body.note?.trim() || null,
+      origin: body.origin === 'agent' ? 'agent' : 'form',
+      outcome: result.ok
+        ? {
+            at: settledAt,
+            hash: result.delivered.hash,
+            explorer: result.delivered.explorer,
+            delivered: { amount: result.delivered.amount, asset: result.delivered.asset },
+            message: null,
+          }
+        : {
+            at: settledAt,
+            hash: null,
+            explorer: null,
+            delivered: null,
+            message: result.message,
+          },
     });
 
     if (!result.ok) throw new Error(result.message);

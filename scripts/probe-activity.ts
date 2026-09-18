@@ -6,6 +6,11 @@
  * list but not the chart, or in the wrong bucket, or twice. These assert the
  * joins rather than the arithmetic.
  *
+ * The seam that matters most is where the two halves part company again. The
+ * opening history shapes the spend chart and is never listed as a transaction,
+ * so the checks below hold the chart to being populated and the rows to being
+ * real, which is the whole contract in two sentences.
+ *
  * Nothing here touches Flutterwave, the treasury or Pollar. Entries are handed
  * to `buildActivity` directly, which is the same thing the route does after
  * reading the ledger, so the path under test is the real one and it costs
@@ -16,6 +21,7 @@
 
 import { buildActivity } from '../src/lib/account/activity';
 import type { LedgerEntry } from '../src/lib/account/ledger';
+import type { PaymentReceipt } from '../src/lib/payments/receipt';
 
 let ran = 0;
 let failed = 0;
@@ -49,8 +55,8 @@ function row(payload: ReturnType<typeof buildActivity>, id: string) {
 function entry(over: Partial<LedgerEntry> = {}): LedgerEntry {
   return {
     reference: 'TEST-1',
-    // Dated at the instant the feed is built, so an injected entry always
-    // outranks the opening history, whose movements land on the hour.
+    // Dated at the instant the feed is built, so an injected entry is always
+    // the newest row and the checks below can name it by position.
     at: new Date(NOW).toISOString(),
     direction: 'debit',
     amount: 250_000,
@@ -67,7 +73,7 @@ console.log('\nopening history');
 
 const base = buildActivity([], 'NGN', NOW);
 
-check('a full history in the feed', base.transactions.length, 30);
+check('an account that has done nothing lists nothing', base.transactions.length, 0);
 check('nothing real yet', base.realCount, 0);
 check('three ranges', Object.keys(base.spend).sort(), ['daily', 'weekly', 'yearly']);
 check('daily columns', base.spend.daily.buckets.length, 90);
@@ -80,12 +86,7 @@ check(
 );
 
 assert(
-  'rows are newest first',
-  base.transactions.every((t, n) => n === 0 || t.at <= base.transactions[n - 1].at),
-);
-assert('no row is dated in the future', base.transactions.every((t) => Date.parse(t.at) <= NOW));
-assert(
-  'every range is populated',
+  'but the chart still has a year of shape behind it',
   Object.values(base.spend).every((s) => s.buckets.some((b) => b.amount > 0)),
 );
 assert(
@@ -113,6 +114,8 @@ const withDebit = buildActivity([entry()], 'NGN', NOW);
 const top = row(withDebit, 'TEST-1');
 
 check('it is the newest row', withDebit.transactions[0].id, 'TEST-1');
+check('and the only one, since it is the only real movement', withDebit.transactions.length, 1);
+assert('nothing invented reached the rows', withDebit.transactions.every((t) => t.real));
 check('it names the recipient', top.party, 'Carlos Mamani');
 check('it is marked real', top.real, true);
 check('it is signed out', top.amount, -250_000);
@@ -129,6 +132,69 @@ const yearlyDelta =
 check("today's column rose by the payment", dailyDelta, 250_000);
 check('this week rose by the same', weeklyDelta, 250_000);
 check('this month rose by the same', yearlyDelta, 250_000);
+
+// Two of them, so the ordering has something to order.
+const twoRows = buildActivity(
+  [entry({ at: new Date(NOW - 3 * 86_400_000).toISOString() }), entry({ reference: 'TEST-2' })],
+  'NGN',
+  NOW,
+);
+
+check('both real rows are listed', twoRows.transactions.length, 2);
+assert(
+  'rows are newest first',
+  twoRows.transactions.every((t, n) => n === 0 || t.at <= twoRows.transactions[n - 1].at),
+);
+assert(
+  'no row is dated in the future',
+  twoRows.transactions.every((t) => Date.parse(t.at) <= NOW),
+);
+
+// ── The receipt a send leaves behind ──────────────────────────────────────
+
+console.log('\na receipt');
+
+function receipt(over: Partial<PaymentReceipt> = {}): PaymentReceipt {
+  return {
+    reference: 'TEST-1',
+    at: new Date(NOW).toISOString(),
+    recipient: { name: 'Carlos Mamani', country: 'BO', countryName: 'Bolivia', account: null },
+    amount: 250_000,
+    currency: 'NGN',
+    note: 'logo and brand system',
+    origin: 'form',
+    outcome: {
+      at: new Date(NOW).toISOString(),
+      hash: 'abc123',
+      explorer: 'https://stellar.expert/abc123',
+      delivered: { amount: 1.45, asset: 'USDC' },
+      message: null,
+    },
+    ...over,
+  };
+}
+
+const withReceipt = buildActivity([entry()], 'NGN', NOW, { 'TEST-1': receipt() });
+
+check('the row carries its receipt', row(withReceipt, 'TEST-1').receipt?.reference, 'TEST-1');
+check(
+  'and with it the hash the detail panel prints',
+  row(withReceipt, 'TEST-1').receipt?.outcome.hash,
+  'abc123',
+);
+check(
+  'and where the money was going',
+  row(withReceipt, 'TEST-1').receipt?.recipient.countryName,
+  'Bolivia',
+);
+
+// A receipt for something that is not in the feed must not attach to anything.
+const strayReceipt = buildActivity([entry()], 'NGN', NOW, {
+  'SOMETHING-ELSE': receipt({ reference: 'SOMETHING-ELSE' }),
+});
+
+check('a receipt for another reference attaches to nothing', row(strayReceipt, 'TEST-1').receipt, undefined);
+check('no receipts at all is not an error', row(withDebit, 'TEST-1').receipt, undefined);
 
 // ── A credit moves the list but not the spend ─────────────────────────────
 

@@ -251,7 +251,17 @@ async function main() {
   heading('10. The dashboard shows it');
 
   const activityAfter = await api<{
-    transactions: { id: string; party: string; amount: number; real: boolean }[];
+    transactions: {
+      id: string;
+      party: string;
+      amount: number;
+      real: boolean;
+      receipt?: {
+        recipient: { country: string; countryName: string };
+        origin: string;
+        outcome: { hash: string | null; delivered: { amount: number; asset: string } | null };
+      };
+    }[];
     spend: { daily: { buckets: { amount: number }[] } };
     realCount: number;
   }>('/api/account/activity');
@@ -263,6 +273,34 @@ async function main() {
   check('it is marked real, not opening history', row?.real === true);
   check('it is signed outward', row?.amount === -AMOUNT, String(row?.amount));
   check('one more real row than before', activityAfter.realCount === activityBefore.realCount + 1);
+
+  /*
+   * The receipt, which is what the detail panel reads.
+   *
+   * The row alone says a payment happened. The receipt is what lets somebody
+   * open it afterwards and see where the money went and check the hash, which
+   * is the whole argument for the panel existing. Asserted here because this
+   * is the only test that makes a real payment, and a receipt that is never
+   * written fails silently everywhere else: the row still renders, just plain.
+   */
+  const receipt = row?.receipt;
+
+  check('the payment left a receipt', receipt !== undefined);
+  check(
+    'it records where the money was going',
+    receipt?.recipient.country === RECIPIENT.country,
+    `${receipt?.recipient.countryName} (${receipt?.recipient.country})`,
+  );
+  check(
+    'it carries the same hash the send returned',
+    receipt?.outcome.hash === sent.delivered.hash,
+    receipt?.outcome.hash ?? 'none',
+  );
+  check(
+    'and what was delivered',
+    receipt?.outcome.delivered?.asset === sent.delivered.asset,
+    `${receipt?.outcome.delivered?.amount} ${receipt?.outcome.delivered?.asset}`,
+  );
 
   const todayAfter = activityAfter.spend.daily.buckets.at(-1)!.amount;
   check(

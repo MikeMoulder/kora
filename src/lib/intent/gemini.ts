@@ -1,16 +1,29 @@
 /**
- * Model-assisted intent extraction.
+ * Intent extraction.
  *
- * The model runs *after* the deterministic parser and is merged under a fixed
- * policy (see `mergeIntents`). The rule that matters:
+ * The model reads the sentence. The rule parser is what answers when the model
+ * cannot be reached, and nothing else.
  *
- *   The model may not overrule a number the parser could already read.
+ * It used to be the other way around: rules ran first and the model was
+ * forbidden from overruling a number the regex had already found, on the
+ * reasoning that a confident hallucination costs the user money and a regex
+ * either matches or does not. The reasoning was sound and the premise was
+ * wrong. A regex does not either match or not; it matches something, and on a
+ * sentence a person actually writes that something is regularly the wrong
+ * number:
  *
- * Amount and currency are the two fields where a confident hallucination
- * costs the user money, and they are exactly the two fields a regex handles
- * well. So the model is given the whole sentence and allowed to contribute
- * everything — recipient, destination, purpose, relative dates, loose phrasing
- * — but on `amount` and `currency` it can only fill a gap, never replace.
+ *   "pay Carlos for invoice 3 tomorrow, 250k naira"   read as ₦3
+ *   "get 40 thousand naira over to Diego Rojas"       read as ₦40
+ *
+ * Both were then locked in, because the merge preferred them over a model that
+ * had read both correctly. The protection against a wrong number was producing
+ * the wrong numbers.
+ *
+ * So the policy is inverted (see `mergeIntents`). What actually protects the
+ * money is downstream of here and always has been: this parser fills a form,
+ * a person reads it, and a human confirmation of a reviewed quote is what
+ * moves anything. A parser that is right most of the time in front of that
+ * check beats one that is confidently wrong in front of it.
  *
  * If there is no API key, or the call fails or times out, the rules result
  * stands and the UI says which parser produced it. There is no silent
@@ -79,37 +92,75 @@ export function geminiConfigured(): boolean {
 }
 
 export async function parseIntent(text: string): Promise<IntentResult> {
-  const baseline = parseWithRules(text);
-  if (!geminiConfigured()) return baseline;
+  /*
+   * Run regardless, and cheap: it is synchronous string matching. It is here
+   * to fill the fields the model left null and to be the whole answer when the
+   * model does not arrive, not to be consulted about what the sentence said.
+   */
+  const fallback = parseWithRules(text);
+
+  if (!geminiConfigured()) return degraded(fallback, 'No Gemini key is configured.');
 
   try {
     const model = await callGemini(text);
-    if (!model) return baseline;
+    if (!model) return degraded(fallback, 'Gemini returned nothing readable.');
 
-    const merged = mergeIntents(baseline.intent, model.intent);
-    const notes = [baseline.note, model.note].filter(Boolean) as string[];
+    const merged = mergeIntents(fallback.intent, model.intent);
 
+    /*
+     * The rule parser's own notes are dropped when the model answered.
+     *
+     * They explain inferences the rules made — "Funding country inferred from
+     * NGN", "Interpreted Friday as the next one" — and once the model is the
+     * one deciding those fields, printing the reasoning of the parser that did
+     * not decide them is worse than printing nothing.
+     */
     return {
       intent: merged,
       source: 'gemini',
       missing: missingFields(merged),
-      note: notes.length ? notes.join(' ') : null,
+      note: model.note,
     };
   } catch {
     // A parser outage must not take the product down; rules already answered.
-    return baseline;
+    return degraded(fallback, 'Gemini could not be reached, so the rule parser read this.');
   }
 }
 
 /**
- * Merge policy, in one place so it can be audited:
- *   amount, currency → rules win when present (money is not a guess)
- *   everything else  → model wins when non-null, rules fill the gaps
+ * The rules result, labelled as the fallback it is.
+ *
+ * Said out loud rather than returned quietly. The rule parser is materially
+ * worse at this than the model, and somebody looking at a form it filled
+ * should be able to tell that is what happened.
+ */
+function degraded(fallback: IntentResult, why: string): IntentResult {
+  return {
+    ...fallback,
+    note: [why, fallback.note].filter(Boolean).join(' '),
+  };
+}
+
+/**
+ * Merge policy, in one place so it can be audited.
+ *
+ *   amount          → the model, and only the model
+ *   everything else → the model when it said something, rules fill the gaps
+ *
+ * Amount is the one field with no fallback, which looks like the opposite of
+ * caution and is the point. When the model returns null it is saying the
+ * sentence named no amount, and that is a reading worth trusting: "pay Carlos
+ * for invoice 3 in Bolivia" states no amount at all. Letting the rules fill
+ * that gap is how a line item number becomes a payment. A missing amount stops
+ * the form and asks; a wrong one does not.
+ *
+ * The gaps the rules do fill are literal lookups — a currency word, a country
+ * name, a weekday — rather than anything inferred from a number.
  */
 export function mergeIntents(rules: PaymentIntent, model: PaymentIntent): PaymentIntent {
   return {
-    amount: rules.amount ?? model.amount,
-    currency: rules.currency ?? normaliseCode(model.currency),
+    amount: model.amount,
+    currency: normaliseCode(model.currency) ?? rules.currency,
     recipientName: model.recipientName ?? rules.recipientName,
     destinationCountry: normaliseCode(model.destinationCountry) ?? rules.destinationCountry,
     sourceCountry: normaliseCode(model.sourceCountry) ?? rules.sourceCountry,
@@ -151,7 +202,7 @@ async function callGemini(
       currency: normaliseCode(str(parsed.currency)),
       purpose: str(parsed.purpose),
       timing: parsed.timing === 'scheduled' ? 'scheduled' : 'now',
-      scheduledFor: str(parsed.scheduledFor),
+      scheduledFor: instant(str(parsed.scheduledFor)),
       sourceCountry: normaliseCode(str(parsed.sourceCountry)),
     },
     note: str(parsed.note ?? null),
@@ -162,6 +213,29 @@ function str(v: unknown): string | null {
   if (typeof v !== 'string') return null;
   const trimmed = v.trim();
   return trimmed && trimmed.toLowerCase() !== 'null' ? trimmed : null;
+}
+
+/**
+ * The model's timestamp, re-emitted as an unambiguous instant.
+ *
+ * Asked for ISO-8601, it returns things like `2026-09-22T09:00:00` — a real
+ * date with no zone on the end. Every reader downstream uses `Date.parse`,
+ * which reads a date-time with no designator as local time, so the same string
+ * means one thing on a Lagos laptop and another on a UTC host, and the payment
+ * a person scheduled for nine in the morning is booked for an hour they did
+ * not pick.
+ *
+ * Parsed once here and written back with a zone on it. The rule parser has
+ * always emitted `toISOString()`; this is the model's output being held to the
+ * same shape rather than every consumer being taught to guess.
+ *
+ * Anything unparseable becomes null. A date nobody can read is not a date, and
+ * the merge then falls through to whatever the rules made of the sentence.
+ */
+function instant(v: string | null): string | null {
+  if (!v) return null;
+  const at = new Date(v);
+  return Number.isNaN(at.getTime()) ? null : at.toISOString();
 }
 
 function normaliseCode(v: string | null | undefined): string | null {

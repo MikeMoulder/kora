@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { cn, copyText } from '@/lib/utils';
-import { Avatar, RowSkeleton, TransactionRow } from './parts';
+import { Avatar, EmptyRows, RowSkeleton, TransactionRow } from './parts';
 import { Flag } from '../Flag';
 import { Spinner } from '../ui/primitives';
 import {
@@ -113,10 +113,10 @@ export function useBalance() {
 /**
  * The transaction rows and the spend series.
  *
- * Fetched rather than imported, because the list is the opening history plus
- * whatever is on the ledger and only the server can see the second half.
- * `refresh` is what makes a send visible: the money leaves, the balance moves,
- * and the row has to appear next to it rather than on the next reload.
+ * Fetched rather than imported, because both are built from the ledger and
+ * only the server can see it. `refresh` is what makes a send visible: the
+ * money leaves, the balance moves, and the row has to appear next to it
+ * rather than on the next reload.
  */
 export function useActivity() {
   const [activity, setActivity] = useState<ActivityPayload | null>(null);
@@ -168,6 +168,21 @@ export interface SendDraft {
    * making somebody re-enter the Friday is the opposite of the point.
    */
   dueAt?: string;
+  /**
+   * Where this draft came from, carried onto the payment's record.
+   *
+   * Only the agent sets it. The beneficiary book is not a third origin: it
+   * fills the form in and a person still reads it and presses send, so the
+   * form is what made the request.
+   *
+   * It used to be inferred from whether the draft carried a due date, on the
+   * grounds that only the agent produced one. That was true and still wrong:
+   * "pay Carlos 40,000 naira" parsed by the agent has no date, so every
+   * immediate send the agent composed was recorded as having come from the
+   * form. An inference that is right about the common case and silently wrong
+   * about the rest is worse than a field.
+   */
+  origin?: 'agent';
 }
 
 // ── Send ──────────────────────────────────────────────────────────────────
@@ -420,6 +435,7 @@ export function SendPanel({
           account: account.trim() || undefined,
           amount,
           note: note.trim() || undefined,
+          origin: draft?.origin === 'agent' ? 'agent' : 'form',
         }),
       }).then((r) => r.json());
 
@@ -433,7 +449,7 @@ export function SendPanel({
     } finally {
       setBusy(false);
     }
-  }, [account, amount, destination, name, note, onSent]);
+  }, [account, amount, destination, draft?.origin, name, note, onSent]);
 
   /**
    * Book it for later instead of sending it.
@@ -463,7 +479,7 @@ export function SendPanel({
           amount,
           note: note.trim() || undefined,
           dueAt,
-          origin: draft?.dueAt ? 'agent' : 'form',
+          origin: draft?.origin === 'agent' ? 'agent' : 'form',
         }),
       }).then((r) => r.json());
 
@@ -482,7 +498,7 @@ export function SendPanel({
     } finally {
       setBusy(false);
     }
-  }, [account, amount, destination, draft?.dueAt, dueAt, name, note, onSent]);
+  }, [account, amount, destination, draft?.origin, dueAt, name, note, onSent]);
 
   /*
    * A draft that already has everything goes straight to review.
@@ -1256,8 +1272,18 @@ export function AgentPanel({ onCompose }: { onCompose?: (draft: SendDraft) => vo
         <div className="mt-5 flex min-h-0 flex-1 flex-col">
           <div className="flex items-center justify-between">
             <SectionLabel>Understood as</SectionLabel>
+            {/*
+              * Which parser read the sentence, not which ones ran.
+              *
+              * This said "Gemini and rules" because both did run and the
+              * result was a merge of the two. It is no longer a merge of
+              * equals: the model decides and the rules fill what it left
+              * blank, so naming both implied a collaboration that was not
+              * happening. "Rule parser" now means the model could not be
+              * reached, which is worth being able to see on the screen.
+              */}
             <span className="rounded-md border border-rule px-1.5 py-0.5 text-[10px] text-ink-muted">
-              {parsed.source === 'gemini' ? 'Gemini and rules' : 'Rule parser'}
+              {parsed.source === 'gemini' ? 'Gemini' : 'Rule parser'}
             </span>
           </div>
 
@@ -1313,6 +1339,20 @@ export function AgentPanel({ onCompose }: { onCompose?: (draft: SendDraft) => vo
             />
           </dl>
 
+          {/*
+            * What the parser wants to admit to.
+            *
+            * The field has been on the payload since the first version and
+            * nothing rendered it, which made the promise of "no silent
+            * degradation" one the interface could not keep: a sentence read by
+            * the rule parser because Gemini was unreachable looked exactly
+            * like one Gemini read. This is where that says so, along with any
+            * assumption the model made about a date or a currency.
+            */}
+          {parsed.note && (
+            <p className="mt-2 px-1 text-[10px] leading-relaxed text-ink-faint">{parsed.note}</p>
+          )}
+
           <div
             className={cn(
               'mt-3 rounded-xl px-3.5 py-3 text-xs leading-relaxed',
@@ -1347,6 +1387,7 @@ export function AgentPanel({ onCompose }: { onCompose?: (draft: SendDraft) => vo
               onCompose?.({
                 name: parsed.intent.recipientName ?? '',
                 country: destination,
+                origin: 'agent',
                 /*
                  * The parsed date, carried through at last.
                  *
@@ -1648,6 +1689,9 @@ interface ReceivingAccount {
  * rows arrived with the four on the card, because the server had already
  * computed them and a second request to save two kilobytes is a worse trade
  * than sending them.
+ *
+ * Everything the account has done, and nothing it has not. The invented
+ * opening history behind the spend chart is not listed here.
  */
 export function ActivityPanel({
   activity,
@@ -1675,8 +1719,10 @@ export function ActivityPanel({
       </div>
 
       <p className="mt-3 text-[10px] leading-relaxed text-ink-faint">
-        The last {rows?.length ?? 0} movements on the account. Open one for the reference,
-        the route and, where there is one, the transaction on Stellar.
+        {rows?.length
+          ? `The last ${rows.length} movement${rows.length === 1 ? '' : 's'} on the account. ` +
+            'Open one for the reference, the route and, where there is one, the transaction on Stellar.'
+          : 'Every movement on the account lands here, with its reference, its route and, where there is one, its transaction on Stellar.'}
       </p>
 
       {/*
@@ -1685,17 +1731,23 @@ export function ActivityPanel({
         * takes the page scrollbar with it, which moves the balance out of view.
         */}
       <ul className="-mr-1 mt-4 max-h-[min(60vh,560px)] space-y-2 overflow-y-auto pr-1">
-        {rows === null
-          ? Array.from({ length: 6 }, (_, n) => <RowSkeleton key={n} index={n} />)
-          : rows.map((tx, n) => (
-              <TransactionRow
-                key={tx.id}
-                tx={tx}
-                index={n}
-                showDate
-                onSelect={onSelect ? () => onSelect(tx) : undefined}
-              />
-            ))}
+        {rows === null ? (
+          Array.from({ length: 6 }, (_, n) => <RowSkeleton key={n} index={n} />)
+        ) : rows.length === 0 ? (
+          <EmptyRows>
+            Nothing has moved yet. Money you send or receive shows up here.
+          </EmptyRows>
+        ) : (
+          rows.map((tx, n) => (
+            <TransactionRow
+              key={tx.id}
+              tx={tx}
+              index={n}
+              showDate
+              onSelect={onSelect ? () => onSelect(tx) : undefined}
+            />
+          ))
+        )}
       </ul>
     </div>
   );

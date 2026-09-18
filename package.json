@@ -8,6 +8,7 @@
     "start": "next start",
     "smoke": "tsx scripts/smoke.ts",
     "probe:activity": "tsx scripts/probe-activity.ts",
+    "probe:intent": "tsx scripts/probe-intent.ts",
     "e2e": "tsx --env-file=.env.local scripts/e2e.ts",
     "typecheck": "tsc --noEmit",
     "setup:settlement": "tsx scripts/setup-settlement.ts",

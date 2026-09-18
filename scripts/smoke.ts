@@ -58,7 +58,7 @@ async function main() {
     corridors.filter((c) => c.readiness !== 'live').every((c) => Boolean(c.readinessNote)),
   );
 
-  heading('Intent parsing (rules only)');
+  heading('Intent parsing (the fallback, on its own)');
   const cases: { text: string; expect: Partial<ReturnType<typeof parseWithRules>['intent']> }[] = [
     {
       text: 'Send ₦100,000 to Carlos in Bolivia for his logo design.',
@@ -88,11 +88,21 @@ async function main() {
     );
   }
 
-  heading('Intent parsing (with Gemini if configured)');
+  /*
+   * The whole path, whichever parser ends up answering.
+   *
+   * This run usually has no Gemini key, because smoke is not given an env
+   * file, so what it normally proves is that the fallback still produces a
+   * usable intent and says out loud that it was the one that read the
+   * sentence. The merge policy itself is pinned in `probe:intent`, which needs
+   * no key either and can therefore test both sides of it.
+   */
+  heading('Intent parsing (the whole path)');
   const live = await parseIntent('Send ₦100,000 to Carlos in Bolivia for his logo design.');
   console.log(`  source: ${live.source}${live.note ? ` · ${live.note}` : ''}`);
-  check('amount survived the merge intact', live.intent.amount === 100000);
-  check('currency survived the merge intact', live.intent.currency === 'NGN');
+  check('a sentence both parsers can read comes out the same either way', live.intent.amount === 100000);
+  check('and in the currency it was written in', live.intent.currency === 'NGN');
+  check('it names which parser answered', live.source === 'gemini' || live.source === 'rules');
 
   heading('Resolution');
   const resolution = resolveIntent(live.intent);

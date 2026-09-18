@@ -1,7 +1,7 @@
 /**
  * Redis, when there is one.
  *
- * Both stores in this project were written behind an interface with a memory
+ * Every store in this project was written behind an interface with a memory
  * default, so this is an adapter rather than a rewrite. Nothing that uses them
  * changes, and the app keeps working with no Redis at all, which matters
  * because a demo that only runs when a managed service is reachable is a demo
@@ -22,6 +22,7 @@ import { Redis } from '@upstash/redis';
 import type { FundingRecord, FundingStore } from '../corridor/store';
 import type { LedgerEntry, LedgerStore } from '../account/ledger';
 import type { ScheduleStore, ScheduledPayment } from '../schedule/types';
+import type { PaymentReceipt, ReceiptStore } from '../payments/receipt';
 
 const URL = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL ?? '';
 const TOKEN = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN ?? '';
@@ -47,6 +48,8 @@ const LEDGER_KEY = (reference: string) => `kora:ledger:entry:${reference}`;
 const LEDGER_LIST = 'kora:ledger:entries';
 const SCHEDULE_KEY = (reference: string) => `kora:schedule:${reference}`;
 const SCHEDULE_INDEX = 'kora:schedule:index';
+const RECEIPT_KEY = (reference: string) => `kora:receipt:${reference}`;
+const RECEIPT_INDEX = 'kora:receipt:index';
 
 export const redisFundingStore: FundingStore = {
   async put(record) {
@@ -188,5 +191,42 @@ export const redisSchedule: ScheduleStore = {
     );
 
     return records.filter((record): record is ScheduledPayment => record !== null);
+  },
+};
+
+/**
+ * Receipts for payments that were sent on the spot.
+ *
+ * A set of references plus one key each, like the schedule. Same access
+ * pattern, and for a closer reason than it looks: the activity feed decorates
+ * a page of rows at a time, so "all of them" is what gets read.
+ */
+export const redisReceipts: ReceiptStore = {
+  async put(receipt) {
+    const redis = client();
+
+    // `nx` decides, for the same reason it does on the ledger: two writes for
+    // one reference mean something went wrong, not that the second is newer.
+    const claimed = await redis.set(RECEIPT_KEY(receipt.reference), receipt, { nx: true });
+    if (claimed === null) return false;
+
+    await redis.sadd(RECEIPT_INDEX, receipt.reference);
+    return true;
+  },
+
+  async get(reference) {
+    return (await client().get<PaymentReceipt>(RECEIPT_KEY(reference))) ?? null;
+  },
+
+  async list() {
+    const redis = client();
+    const references = await redis.smembers(RECEIPT_INDEX);
+    if (references.length === 0) return [];
+
+    const records = await Promise.all(
+      references.map((reference) => redis.get<PaymentReceipt>(RECEIPT_KEY(reference))),
+    );
+
+    return records.filter((record): record is PaymentReceipt => record !== null);
   },
 };

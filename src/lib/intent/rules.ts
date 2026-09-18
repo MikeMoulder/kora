@@ -1,16 +1,24 @@
 /**
  * Deterministic intent parser.
  *
- * Not a fallback bolted on late — it runs first, and the model is only asked
- * for what the rules could not resolve. Two reasons:
+ * The fallback. It answers when Gemini has no key, fails or times out, and it
+ * keeps the demo runnable with no API key, no network and no latency. It is
+ * not consulted about what a sentence meant when the model is available; see
+ * the policy in `gemini.ts` for why that changed.
  *
- *   1. It cannot hallucinate an amount. For the one field where being
- *      confidently wrong costs the user money, a regex that either matches or
- *      does not is the safer instrument.
- *   2. The demo works with no API key, no network and no latency.
+ * It used to run first on the grounds that a regex cannot hallucinate an
+ * amount. It cannot, but it can read the wrong one, which costs exactly the
+ * same and is harder to notice. Two of the ways it did are fixed below and
+ * both are worth knowing about, because they are the shape of the problem
+ * rather than two typos:
  *
- * The model earns its place on the things rules are bad at: loose phrasing,
- * relative dates, and purpose extraction.
+ *   - it took the first number-like thing it saw, so "invoice 3 ... 250k
+ *     naira" was three naira
+ *   - it scaled "k" and "m" but not the words, so "40 thousand naira" was
+ *     forty
+ *
+ * A regex over a sentence somebody typed does not either match or not. It
+ * matches something.
  */
 
 import { EMPTY_INTENT, missingFields, type IntentResult, type PaymentIntent } from './types';
@@ -165,39 +173,67 @@ function sortedWords(): [string, string][] {
   return Object.entries(CURRENCY_WORDS).sort((a, b) => b[0].length - a[0].length);
 }
 
+/**
+ * The amount, preferring one that says what currency it is in.
+ *
+ * The order is the whole design. A figure written next to a currency is one
+ * somebody meant as money; a bare number in a sentence about money might be an
+ * invoice number, a milestone, a quantity or a date. So every currency-anchored
+ * form is searched across the entire sentence before a bare number is
+ * considered anywhere in it.
+ *
+ * Each pass scans all of its matches rather than testing only the first. That
+ * is the fix for the worst reading this parser produced: given "pay Carlos for
+ * invoice 3 tomorrow, 250k naira", the suffixed pass used to match "3 tomorrow"
+ * first, find that "tomorrow" is not a currency, and give up — leaving the bare
+ * pass to answer three. The number it wanted was further along the same line.
+ */
 function matchAmount(text: string): { amount: number; currency: string | null } | null {
-  // Symbol-prefixed: ₦100,000 · $80 · ₵1,200.50
-  const symbol = text.match(/([₦₵$€£])\s?([\d,]+(?:\.\d{1,2})?)\s*([km])?\b/i);
-  if (symbol) {
-    const amount = scale(symbol[2], symbol[3]);
-    if (amount !== null) return { amount, currency: CURRENCY_SYMBOLS[symbol[1]] ?? null };
-  }
-
-  // Code-prefixed: NGN 100,000 · KES 5000
-  const prefixed = text.match(/\b([A-Z]{3})\s?([\d,]+(?:\.\d{1,2})?)\s*([km])?\b/);
-  if (prefixed && CURRENCY_WORDS[prefixed[1].toLowerCase()]) {
-    const amount = scale(prefixed[2], prefixed[3]);
-    if (amount !== null) return { amount, currency: CURRENCY_WORDS[prefixed[1].toLowerCase()] };
-  }
-
-  // Suffixed: 100,000 naira · 80 bucks · 5k shillings
-  const suffixed = text.match(
-    /\b([\d,]+(?:\.\d{1,2})?)\s*([km])?\s*([a-z]{3,10})\b/i,
-  );
-  if (suffixed) {
-    const code = CURRENCY_WORDS[suffixed[3].toLowerCase()];
-    if (code) {
-      const amount = scale(suffixed[1], suffixed[2]);
-      if (amount !== null) return { amount, currency: code };
+  // Symbol-prefixed: ₦100,000 · $80 · ₵1,200.50 · ₦250k
+  for (const m of text.matchAll(amountPattern(`([₦₵$€£])\\s?`, true))) {
+    const amount = scale(m[2], m[3]);
+    if (amount !== null && amount > 0) {
+      return { amount, currency: CURRENCY_SYMBOLS[m[1]] ?? null };
     }
   }
 
-  // Bare number, currency unknown — still worth capturing.
-  const bare = text.match(/\b([\d,]+(?:\.\d{1,2})?)\s*([km])?\b/i);
-  if (bare) {
-    const amount = scale(bare[1], bare[2]);
+  // Code-prefixed: NGN 100,000 · KES 5000
+  for (const m of text.matchAll(amountPattern(`\\b([A-Z]{3})\\s?`, false))) {
+    const code = CURRENCY_WORDS[m[1].toLowerCase()];
+    if (!code) continue;
+    const amount = scale(m[2], m[3]);
+    if (amount !== null && amount > 0) return { amount, currency: code };
+  }
+
+  // Suffixed: 100,000 naira · 80 bucks · 5k shillings · 40 thousand naira
+  const suffixed = new RegExp(
+    `\\b([\\d,]+(?:\\.\\d{1,2})?)\\s*(${SCALE_PATTERN})?\\s*([a-z]{3,10})\\b`,
+    'gi',
+  );
+  for (const m of text.matchAll(suffixed)) {
+    const code = CURRENCY_WORDS[m[3].toLowerCase()];
+    if (!code) continue;
+    const amount = scale(m[1], m[2]);
+    if (amount !== null && amount > 0) return { amount, currency: code };
+  }
+
+  /*
+   * A scaled number carrying no currency: "send 250k to Carlos".
+   *
+   * Still ahead of a bare number, because nobody writes a line item as "250k".
+   * The scale word is itself the signal that this was meant as money.
+   */
+  const scaled = new RegExp(`\\b([\\d,]+(?:\\.\\d{1,2})?)\\s*(${SCALE_PATTERN})\\b`, 'gi');
+  for (const m of text.matchAll(scaled)) {
+    const amount = scale(m[1], m[2]);
+    if (amount !== null && amount > 0) return { amount, currency: null };
+  }
+
+  // Bare number, currency unknown — the last resort, and the least trustworthy.
+  for (const m of text.matchAll(/\b([\d,]+(?:\.\d{1,2})?)\b/g)) {
+    const amount = scale(m[1]);
     // Reject things that are obviously not amounts (years, phone fragments).
-    if (amount !== null && amount > 0 && !/^(19|20)\d{2}$/.test(bare[1].replace(/,/g, ''))) {
+    if (amount !== null && amount > 0 && !/^(19|20)\d{2}$/.test(m[1].replace(/,/g, ''))) {
       return { amount, currency: null };
     }
   }
@@ -205,11 +241,44 @@ function matchAmount(text: string): { amount: number; currency: string | null } 
   return null;
 }
 
+/**
+ * A number with an optional scale on it, behind whatever marks the currency.
+ *
+ * Built rather than written out because the scale alternation is derived from
+ * `SCALES`, and a pattern that lists `k|m` beside a table that also knows
+ * "thousand" is a pattern that will drift away from the table it belongs to.
+ */
+function amountPattern(prefix: string, ignoreCase: boolean): RegExp {
+  return new RegExp(
+    `${prefix}([\\d,]+(?:\\.\\d{1,2})?)\\s*(${SCALE_PATTERN})?\\b`,
+    ignoreCase ? 'gi' : 'g',
+  );
+}
+
+/**
+ * Multipliers, by how they are written.
+ *
+ * The words matter as much as the letters. People write "40 thousand naira"
+ * far more often than "40k naira", and a parser that reads only the second
+ * turns the first into forty.
+ */
+const SCALES: Record<string, number> = {
+  k: 1_000,
+  thousand: 1_000,
+  m: 1_000_000,
+  mn: 1_000_000,
+  million: 1_000_000,
+  bn: 1_000_000_000,
+  billion: 1_000_000_000,
+};
+
+const SCALE_PATTERN = Object.keys(SCALES).sort((a, b) => b.length - a.length).join('|');
+
 function scale(raw: string, suffix?: string): number | null {
   const n = Number(raw.replace(/,/g, ''));
   if (!Number.isFinite(n)) return null;
   if (!suffix) return n;
-  return suffix.toLowerCase() === 'k' ? n * 1_000 : n * 1_000_000;
+  return n * (SCALES[suffix.toLowerCase()] ?? 1);
 }
 
 function matchRecipient(text: string): string | null {
