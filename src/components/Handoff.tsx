@@ -2,8 +2,9 @@
 
 import { useCallback, useState } from 'react';
 import { usePollar } from '@pollar/react';
-import { Button, Card, Money, Note, Pill, Row, SectionLabel } from './ui';
+import { ArrowUpRight } from 'lucide-react';
 import { Flag } from './Flag';
+import { Button, Money, Note, OwnerTag, Panel, Row, SectionLabel, cn } from './ui/primitives';
 import type { IntentResponse, QuoteResponse } from '@/lib/client';
 import type { KoraFundingRequest } from '@/lib/corridor/types';
 import {
@@ -20,10 +21,10 @@ import {
 /**
  * The hand-off.
  *
- * Everything before this point is KORA's. Everything after it is Pollar's.
- * The transfer here is a real, sponsored, on-chain transaction on Stellar
- * testnet — the one part of the corridor that is not simulated, and the
- * reason the receipt can carry a hash anyone can check.
+ * Everything before this point is KORA's, drawn solid. Everything after it is
+ * Pollar's, drawn outlined. The transfer here is a real, sponsored, on-chain
+ * transaction on Stellar testnet, the one part of the corridor that is not
+ * simulated and the reason the receipt can carry a hash anyone can check.
  */
 export function Handoff({
   quote,
@@ -38,9 +39,8 @@ export function Handoff({
   txHash: string | null;
   onSettled: (hash: string) => void;
 }) {
-  if (!isPollarConfigured()) {
-    return <NotConfigured />;
-  }
+  if (!isPollarConfigured()) return <NotConfigured />;
+
   return (
     <HandoffLive
       quote={quote}
@@ -56,23 +56,27 @@ function NotConfigured() {
   const gaps = configGaps();
 
   return (
-    <Card leg="pollar" className="p-5 rise">
-      <SectionLabel>Hand-off to Pollar</SectionLabel>
-      <p className="mt-3 text-sm leading-relaxed text-ink-300">
-        The African leg above ran for real. The hand-off needs configuration before it can put a
-        transaction on Stellar.
+    <Panel className="rise p-5">
+      <div className="flex items-center justify-between">
+        <SectionLabel>Hand-off to Pollar</SectionLabel>
+        <OwnerTag owner="theirs">Pollar</OwnerTag>
+      </div>
+
+      <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+        The African leg above ran for real. The hand-off needs configuration before it can
+        put a transaction on Stellar.
       </p>
 
-      <div className="mt-4 space-y-3">
+      <div className="mt-4 space-y-2.5">
         {gaps.map((gap) => (
-          <div key={gap.key} className="rounded-xl border seam bg-ink-950/50 p-3.5">
-            <code className="text-xs text-flow-glow">{gap.key}</code>
-            <p className="mt-1.5 text-sm text-ink-200">{gap.what}</p>
-            <p className="mt-1 text-xs text-ink-500">{gap.how}</p>
+          <div key={gap.key} className="leg-simulated rounded-lg p-3.5">
+            <code className="font-mono text-[11px] text-ink">{gap.key}</code>
+            <p className="mt-1.5 text-sm text-ink">{gap.what}</p>
+            <p className="mt-1 text-xs text-ink-muted">{gap.how}</p>
           </div>
         ))}
       </div>
-    </Card>
+    </Panel>
   );
 }
 
@@ -89,7 +93,7 @@ function HandoffLive({
   txHash: string | null;
   onSettled: (hash: string) => void;
 }) {
-  const { isAuthenticated, wallet, login, sendPayment, configStatus } = usePollar();
+  const { isAuthenticated, wallet, openLoginModal, sendPayment, configStatus } = usePollar();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -110,19 +114,22 @@ function HandoffLive({
 
       if (status === 'success' && hash) {
         onSettled(hash);
-      } else {
-        const detail =
-          (outcome as { details?: string }).details ??
-          (outcome as { errorCode?: string }).errorCode ??
-          'The network rejected the transfer.';
-        setError(
-          `${detail}${
-            detail.toLowerCase().includes('underfunded') || detail.includes('op_no_trust')
-              ? ` — the wallet needs ${SETTLEMENT_ASSET} on ${STELLAR_NETWORK}. Set NEXT_PUBLIC_SETTLEMENT_ASSET=XLM if you cannot get testnet USDC.`
-              : ''
-          }`,
-        );
+        return;
       }
+
+      const detail =
+        (outcome as { details?: string }).details ??
+        (outcome as { errorCode?: string }).errorCode ??
+        'The network rejected the transfer.';
+
+      const needsAsset =
+        detail.toLowerCase().includes('underfunded') || detail.includes('op_no_trust');
+
+      setError(
+        needsAsset
+          ? `${detail}. The wallet needs ${SETTLEMENT_ASSET} on ${STELLAR_NETWORK}. Set NEXT_PUBLIC_SETTLEMENT_ASSET=XLM if you cannot get testnet USDC.`
+          : detail,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The transfer failed.');
     } finally {
@@ -135,19 +142,19 @@ function HandoffLive({
   }
 
   return (
-    <Card leg="pollar" className="p-5 rise">
+    <Panel className="rise p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
           <SectionLabel>Hand-off to Pollar</SectionLabel>
-          <p className="mt-2 max-w-md text-sm leading-relaxed text-ink-300">
-            The African leg settled. From here Pollar moves the value — a sponsored transfer on
-            Stellar {STELLAR_NETWORK}, with the user paying no network fee.
+          <p className="mt-2.5 max-w-md text-sm leading-relaxed text-ink-soft">
+            The African leg settled. From here Pollar moves the value, a sponsored transfer
+            on Stellar {STELLAR_NETWORK}, with the user paying no network fee.
           </p>
         </div>
-        <Pill tone="pollar">Pollar</Pill>
+        <OwnerTag owner="theirs">Pollar</OwnerTag>
       </div>
 
-      <div className="mt-5 rounded-xl border border-flow-core/25 bg-flow-wash/40 p-4">
+      <div className="leg-theirs mt-5 rounded-lg px-4 py-3">
         <Row label="Transferring">
           <Money amount={quote.quote.receiveUsdc} currency={SETTLEMENT_ASSET} />
         </Row>
@@ -156,52 +163,67 @@ function HandoffLive({
             href={explorerAccountUrl(SETTLEMENT_ADDRESS)}
             target="_blank"
             rel="noreferrer"
-            className="font-mono text-xs text-flow-glow underline-offset-2 hover:underline"
+            className="font-mono text-xs underline underline-offset-4"
           >
-            {SETTLEMENT_ADDRESS.slice(0, 6)}…{SETTLEMENT_ADDRESS.slice(-6)}
+            {SETTLEMENT_ADDRESS.slice(0, 6)}&hellip;{SETTLEMENT_ADDRESS.slice(-6)}
           </a>
         </Row>
       </div>
 
       {!isAuthenticated ? (
         <div className="mt-5">
-          <Note tone="pollar">
-            Pollar creates the wallet on sign-in — a Stellar account with the key encrypted in
-            AWS KMS. No seed phrase, no address, no trustline prompt for the user.
+          <Note>
+            Pollar creates the wallet on sign-in, a Stellar account with the key encrypted in
+            AWS KMS. No seed phrase, no address and no trustline prompt for the user.
           </Note>
+          {/*
+            * Pollar's own login modal rather than a hard-coded provider.
+            *
+            * It offers whatever the app has enabled — email code, a social
+            * provider, a passkey, an external wallet — instead of committing
+            * this screen to one of them. Hosted OAuth also needs redirect URIs
+            * registered on the app, and calling `login({ provider: 'google' })`
+            * directly turns a missing dashboard setting into a dead button
+            * with the reason buried in a redirect. The modal lets someone pick
+            * a method that does work.
+            */}
           <Button
-            variant="pollar"
+            variant="outline"
             className="mt-4 w-full"
-            onClick={() => login({ provider: 'google' })}
+            onClick={openLoginModal}
             disabled={configStatus === 'loading'}
           >
-            {configStatus === 'loading' ? 'Loading Pollar…' : 'Continue with Google'}
+            {configStatus === 'loading' ? 'Loading Pollar' : 'Sign in with Pollar'}
           </Button>
         </div>
       ) : (
         <div className="mt-5">
           <Row label="Sending wallet" note="Created by Pollar on sign-in">
-            <span className="font-mono text-xs text-ink-300">
-              {wallet?.address ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-6)}` : '—'}
+            <span className="font-mono text-xs text-ink-soft">
+              {wallet?.address
+                ? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-6)}`
+                : '—'}
             </span>
           </Row>
 
-          <Button variant="pollar" className="mt-4 w-full" onClick={send} busy={busy}>
-            {busy ? 'Submitting to Stellar…' : `Hand off ${quote.quote.receiveUsdc.toFixed(2)} ${SETTLEMENT_ASSET}`}
+          <Button variant="outline" className="mt-4 w-full" onClick={send} busy={busy}>
+            {busy
+              ? 'Submitting to Stellar'
+              : `Hand off ${quote.quote.receiveUsdc.toFixed(2)} ${SETTLEMENT_ASSET}`}
           </Button>
         </div>
       )}
 
       {error && (
         <div className="mt-4">
-          <Note tone="warn">{error}</Note>
+          <Note tone="strong">{error}</Note>
         </div>
       )}
-    </Card>
+    </Panel>
   );
 }
 
-// ── Payment Passport ──────────────────────────────────────────────────────
+// ---- Payment passport ---------------------------------------------------
 
 function Passport({
   quote,
@@ -217,91 +239,93 @@ function Passport({
   const corridor = intent.resolution.selected;
 
   return (
-    <div className="space-y-5 rise">
-      <Card leg="pollar" className="overflow-hidden">
-        <div className="border-b seam bg-ink-950/50 px-5 py-4">
-          <div className="flex items-center justify-between">
-            <SectionLabel>Payment passport</SectionLabel>
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-live">
-              <span className="h-1.5 w-1.5 rounded-full bg-live" />
-              Settled
-            </span>
-          </div>
+    <div className="rise space-y-4">
+      <Panel className="overflow-hidden">
+        <div className="flex items-center justify-between border-b border-rule bg-paper-sunk px-5 py-3.5">
+          <SectionLabel>Payment passport</SectionLabel>
+          <span className="flex items-center gap-1.5 text-xs font-semibold">
+            <span className="h-1.5 w-1.5 rounded-full bg-ink" />
+            Settled
+          </span>
         </div>
 
-        <div className="px-5 py-5">
-          <div className="flex flex-wrap items-end justify-between gap-6">
+        <div className="px-5 py-6">
+          <div className="flex flex-wrap items-end justify-between gap-8">
             <div>
-              <div className="text-[11px] uppercase tracking-wider text-ink-500">Sent</div>
-              <Money
-                amount={quote.quote.amount}
-                currency={quote.quote.currency}
-                size="xl"
-                className="text-amber-glow"
-              />
-              <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-500">
+              <div className="text-[11px] uppercase tracking-[0.12em] text-ink-faint">Sent</div>
+              <div className="mt-1">
+                <Money amount={quote.quote.amount} currency={quote.quote.currency} size="xl" />
+              </div>
+              <div className="mt-2 flex items-center gap-1.5 text-xs text-ink-muted">
                 {corridor && <Flag code={corridor.country} size={13} />}
-                {corridor?.countryName} · {corridor?.railLabel}
+                {corridor?.countryName}, {corridor?.railLabel}
               </div>
             </div>
 
             <div className="text-right">
-              <div className="text-[11px] uppercase tracking-wider text-ink-500">
+              <div className="text-[11px] uppercase tracking-[0.12em] text-ink-faint">
                 Recipient receives
               </div>
-              <span className="tabular text-3xl font-semibold tracking-tight text-flow-glow">
+              <div className="tabular mt-1 text-[28px] font-semibold tracking-[-0.02em]">
                 Bs {quote.destinationEstimate.amount.toLocaleString()}
-              </span>
-              <div className="mt-1 flex items-center justify-end gap-1.5 text-xs text-ink-500">
+              </div>
+              <div className="mt-2 flex items-center justify-end gap-1.5 text-xs text-ink-muted">
                 <Flag code={intent.intent.destinationCountry ?? 'BO'} size={13} />
-                {intent.intent.recipientName ?? 'Recipient'} · Bolivia
+                {intent.intent.recipientName ?? 'Recipient'}, Bolivia
               </div>
             </div>
           </div>
 
-          <div className="mt-6 divide-y divide-ink-800/60 border-t seam pt-2">
+          <div className="mt-7 divide-y divide-rule border-t border-rule pt-1">
             <Row label="Route">
-              <span className="font-mono text-xs text-ink-200">
-                {quote.quote.currency} → {SETTLEMENT_ASSET} → BOB
+              <span className="font-mono text-xs">
+                {quote.quote.currency} &rarr; {SETTLEMENT_ASSET} &rarr; BOB
               </span>
             </Row>
             <Row label="African leg" note={corridor?.readinessNote}>
-              <span className="text-xs text-amber-glow">
-                KORA · {corridor?.railLabel} ({corridor?.readiness})
-              </span>
+              <OwnerTag owner="ours">
+                KORA, {corridor?.rail} ({corridor?.readiness})
+              </OwnerTag>
             </Row>
             <Row label="Funding reference">
-              <span className="font-mono text-xs text-ink-200">{funding?.reference ?? '—'}</span>
+              <span className="font-mono text-xs">{funding?.reference ?? '—'}</span>
             </Row>
             <Row label="Fee paid" note="Rail fee plus KORA spread. No FX markup.">
-              <span className="tabular text-xs text-ink-200">
+              <span className="tabular text-xs">
                 {quote.quote.fee.toLocaleString()} {quote.quote.feeCurrency}
               </span>
             </Row>
             <Row label="Settlement leg">
-              <span className="text-xs text-flow-glow">Pollar · Stellar {STELLAR_NETWORK}</span>
+              <OwnerTag owner="theirs">Pollar, Stellar {STELLAR_NETWORK}</OwnerTag>
             </Row>
             <Row label="Transaction">
               <a
                 href={explorerTxUrl(txHash)}
                 target="_blank"
                 rel="noreferrer"
-                className="font-mono text-xs text-flow-glow underline-offset-2 hover:underline"
+                className={cn(
+                  'inline-flex items-center gap-1 font-mono text-xs',
+                  'underline underline-offset-4 hover:no-underline',
+                )}
               >
-                {txHash.slice(0, 10)}…{txHash.slice(-8)} ↗
+                {txHash.slice(0, 10)}&hellip;{txHash.slice(-8)}
+                <ArrowUpRight className="h-3 w-3" strokeWidth={2} />
               </a>
             </Row>
-            <Row label="Bolivian payout" note="Pollar's live BOB ramp runs on mainnet via Stereum.">
-              <Pill tone="warn">Simulated</Pill>
+            <Row
+              label="Bolivian payout"
+              note="Pollar's live BOB ramp runs on mainnet via Stereum."
+            >
+              <OwnerTag owner="simulated">Simulated</OwnerTag>
             </Row>
           </div>
         </div>
-      </Card>
+      </Panel>
 
-      <Note tone="pollar">
-        Everything above the transaction hash is verifiable on a public network. The BOB payout is
-        the one step we simulate — it is Pollar&rsquo;s mainnet leg, and the brief said not to
-        build it.
+      <Note>
+        Everything above the transaction hash is verifiable on a public network. The BOB
+        payout is the one step we simulate. It is Pollar&rsquo;s mainnet leg, and the brief
+        said not to build it.
       </Note>
     </div>
   );
