@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Check, ChevronDown, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Flag } from '../Flag';
 import { signInDemo, DEMO_CREDENTIALS } from '@/lib/demo-auth';
 
 /**
@@ -47,6 +48,48 @@ const PANEL_VIDEO = '/panel.mp4';
  */
 const BAND_MASK = 'linear-gradient(to bottom, transparent 0%, #000 26%, #000 100%)';
 
+/**
+ * Where a person can fund from, and where they will be able to.
+ *
+ * The same five countries the corridor registry declares, in the same order,
+ * and hardcoded here on purpose: the registry pulls in the rail adapters, and
+ * the Nigerian one imports the Flutterwave client, which refuses to load in a
+ * browser because it holds a secret key. Importing the real list into a client
+ * component would throw on the sign in screen.
+ *
+ * So this is a copy, and it is worth saying out loud. If a corridor is added,
+ * add it here. Each entry names its real blocker rather than saying "coming
+ * soon", because a date nobody has committed to is not information and the
+ * blocker is.
+ */
+const COUNTRIES: { code: string; name: string; rail: string; blocker?: string }[] = [
+  { code: 'NG', name: 'Nigeria', rail: 'Bank transfer (NIP)' },
+  {
+    code: 'KE',
+    name: 'Kenya',
+    rail: 'M-Pesa',
+    blocker: 'Waiting on an approved Safaricom shortcode',
+  },
+  {
+    code: 'GH',
+    name: 'Ghana',
+    rail: 'Mobile Money',
+    blocker: 'Waiting on a signed MTN partner agreement',
+  },
+  {
+    code: 'UG',
+    name: 'Uganda',
+    rail: 'Mobile Money',
+    blocker: 'Waiting on a Bank of Uganda licence',
+  },
+  {
+    code: 'ZA',
+    name: 'South Africa',
+    rail: 'PayShap',
+    blocker: 'Waiting on a sponsoring bank',
+  },
+];
+
 export function SignInPage() {
   const router = useRouter();
 
@@ -58,6 +101,16 @@ export function SignInPage() {
     password: DEMO_CREDENTIALS.password,
     rememberMe: true,
   });
+
+  /*
+   * Nigeria, and nothing else is selectable.
+   *
+   * Held in state rather than pinned as a constant because the control is a
+   * real one: it opens, it takes a keyboard, and the other four are visibly
+   * refusable rather than absent. A country nobody can pick is a more honest
+   * roadmap than a country that is simply missing from the list.
+   */
+  const [country, setCountry] = useState(COUNTRIES[0].code);
 
   function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
     const { name, value, type, checked } = event.target;
@@ -151,6 +204,10 @@ export function SignInPage() {
                   )}
                 </button>
               </div>
+            </Field>
+
+            <Field label="Country" htmlFor="country">
+              <CountrySelect value={country} onChange={setCountry} />
             </Field>
 
             <div className="flex items-center justify-between pt-1">
@@ -425,6 +482,130 @@ function MobileMark() {
         />
       </span>
       <span className="text-sm font-semibold tracking-[-0.01em] text-neutral-950">KORA</span>
+    </div>
+  );
+}
+
+/**
+ * The country picker.
+ *
+ * A native `<select>` would have been a tenth of this, and it cannot draw a
+ * flag: an option element renders text and nothing else. The project already
+ * refuses flag emoji, because regional-indicator pairs fall back to bare
+ * letters on Windows Chrome, which is a machine a judge might well open this
+ * on. So the control is built rather than borrowed, and the flags are the same
+ * images every other screen uses.
+ *
+ * The unavailable countries are listed and refused rather than hidden. A
+ * roadmap you can see and cannot click says more about what is coming than a
+ * list with four entries missing, and each one names the commercial thing that
+ * is actually blocking it instead of a date nobody has promised.
+ */
+function CountrySelect({ value, onChange }: { value: string; onChange: (code: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+
+  const selected = COUNTRIES.find((c) => c.code === value) ?? COUNTRIES[0];
+
+  /*
+   * Close on a click elsewhere and on Escape.
+   *
+   * Both, not one. Pointer users expect the first and keyboard users expect
+   * the second, and a popover that only answers the mouse is a popover a
+   * keyboard can get stuck inside.
+   */
+  useEffect(() => {
+    if (!open) return;
+
+    function onPointer(event: MouseEvent) {
+      if (box.current && !box.current.contains(event.target as Node)) setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={box} className="relative">
+      <button
+        id="country"
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={cn(
+          'flex h-12 w-full items-center gap-2.5 rounded-lg border border-neutral-200 bg-white px-4 text-left text-[15px] text-neutral-900 transition-colors',
+          'hover:border-neutral-300 focus:border-neutral-950 focus:outline-none',
+        )}
+      >
+        <Flag code={selected.code} size={20} />
+        <span className="flex-1 truncate">{selected.name}</span>
+        <span className="hidden text-[11px] text-neutral-400 sm:inline">{selected.rail}</span>
+        <ChevronDown
+          className={cn(
+            'h-4 w-4 shrink-0 text-neutral-400 transition-transform',
+            open && 'rotate-180',
+          )}
+          strokeWidth={1.75}
+        />
+      </button>
+
+      {open && (
+        <ul
+          role="listbox"
+          aria-label="Funding country"
+          className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 overflow-hidden rounded-lg border border-neutral-200 bg-white py-1 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.18)]"
+        >
+          {COUNTRIES.map((c) => {
+            const live = !c.blocker;
+            const active = c.code === value;
+
+            return (
+              <li key={c.code} role="option" aria-selected={active} aria-disabled={!live}>
+                <button
+                  type="button"
+                  disabled={!live}
+                  onClick={() => {
+                    onChange(c.code);
+                    setOpen(false);
+                  }}
+                  title={c.blocker}
+                  className={cn(
+                    'flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors',
+                    live
+                      ? 'cursor-pointer hover:bg-neutral-50'
+                      : 'cursor-not-allowed opacity-55',
+                  )}
+                >
+                  <Flag code={c.code} size={20} />
+
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[14px] text-neutral-900">{c.name}</span>
+                    <span className="block truncate text-[11px] text-neutral-400">
+                      {live ? c.rail : `${c.rail} · ${c.blocker}`}
+                    </span>
+                  </span>
+
+                  {live ? (
+                    active && <Check className="h-4 w-4 shrink-0 text-neutral-900" strokeWidth={2} />
+                  ) : (
+                    <span className="shrink-0 rounded-full border border-neutral-200 px-2 py-0.5 text-[10px] uppercase tracking-[0.06em] text-neutral-400">
+                      Coming soon
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
