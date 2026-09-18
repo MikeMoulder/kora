@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 59
+**Commits:** 68
 
 ---
 
@@ -17,6 +17,14 @@ It is the last screen still on the deleted amber and cyan tokens, so it currentl
 renders unstyled. Everything else has been converted.
 
 After that, Phase J, deploy, since judges need a link.
+
+Two smaller things are still open on the dashboard, neither blocking:
+
+- Convert and Receive on the balance card are inert. Pay now opens the send panel, so
+  the other two are the only buttons on the screen that do nothing.
+- The production build has not been run since the overview cleanup. A dev server from
+  another session holds `.next`, and `next build` would take it out from under that
+  session. Run it before deploy.
 
 ---
 
@@ -97,6 +105,15 @@ provider logs a 403 in the console.
 | 2026-09-18 | Dashboard to engine handoff | `/send?intent=` | 1 full run | Auto-parsed, quoted live at 250,000 NGN to 186.48 USDC |
 | 2026-09-18 | Production build with dashboard | `npm run build` | 14 routes | Clean |
 | 2026-09-18 | Smoke after dashboard | `npm run smoke` | 34 checks | All passed, no regression |
+| 2026-09-18 | Typecheck during overview cleanup | `npx tsc --noEmit` | Whole project | Clean, run 5 times |
+| 2026-09-18 | Smoke after overview cleanup | `npm run smoke` | 34 checks | All passed, no regression |
+| 2026-09-18 | Console audit, overview | Browser console | Errors | Only the known Pollar 403s |
+| 2026-09-18 | Overview layout, 1440px | Browser measurement | Overflow | None |
+| 2026-09-18 | Overview layout, 1024px | Browser measurement | Overflow | None |
+| 2026-09-18 | Overview layout, 800px | Browser measurement | Overflow, rail fallback | None, panel triggers shown |
+| 2026-09-18 | Overview layout, 375px | Browser measurement | Overflow | None |
+| 2026-09-18 | Panel open and close, 1440px | Browser | Rail to panel to close | Opens, reflows, closes back to overview |
+| 2026-09-18 | Panel open, 375px | Browser DOM probe | Panel mounts below main | Present, no overflow |
 
 **Total automated checks passing: 34.**
 
@@ -110,6 +127,11 @@ provider logs a 403 in the console.
 - The console audit caught a `next/image` aspect ratio warning. Tailwind's `w-auto` class
   was not enough, because Next inspects the inline style. Setting `style={{ width: 'auto' }}`
   cleared it.
+- The 375px scroll check looked like a paint bug in the new gradient: scrolled captures
+  came back blank. Reproducing it on `/corridors`, a page the change never touched, showed
+  it was the browser pane's mobile capture rather than the CSS. Worth recording, because
+  the next person to screenshot a scrolled phone viewport will see the same thing and
+  reach for the same wrong conclusion.
 
 ---
 
@@ -186,6 +208,29 @@ and the manual keypad compose the same sentence and hand it to the same corridor
 Photo avatars were replaced with monogram discs, filled for a person and outlined for a
 business. Money in and out is carried by arrow direction and fill rather than green and
 red, so it survives greyscale.
+
+### Phase N, overview cleanup
+
+The dashboard mounted the send panel on load, so the first thing the account showed was a
+half composed payment nobody had asked for, next to a balance it was already quoting
+against. Overview is now the resting state and holds the full width. The workspace panel
+opens from the rail, or from Pay on the balance card, and carries its own title and close
+because the rail is hidden below `lg`. Narrow screens get a row of three triggers in the
+rail's place.
+
+Restyled against the supplied reference at the same time:
+
+- The canvas runs mint to its deep stop on the diagonal rather than sitting as a pale flat
+  field, and the card carries a wash of the same mint, heaviest at the top left and gone by
+  the middle. The wash is what makes white cards read as objects on a surface.
+- Every recent activity row became its own card. Each line is a separate event with its own
+  counterparty and direction, so a shared frame was claiming a relationship that is not
+  there.
+- The rail dropped its divider and its own fill so it sits on the surface. The workspace
+  panel stays white, both as the reference has them.
+- Removed the subtitle, which described a Latin America use case the corridor registry does
+  not serve, and the sample data note, which restated in small grey type what the corridor
+  pages already say plainly.
 
 ### Other
 
