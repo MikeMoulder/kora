@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CardLabel } from './parts';
@@ -66,6 +66,20 @@ const DOT_MAX = 7;
  */
 const PLOT_HEIGHT = 150;
 
+/**
+ * The column pitch the matrix is drawn at, near enough.
+ *
+ * The chart runs the width of the dashboard, so how many columns fit is a
+ * property of the window rather than of the data. The feed sends more history
+ * than any one screen can draw and this decides how much of the tail to take:
+ * roughly three months of days on a wide monitor, about four weeks of them on
+ * a phone, at the same density either way.
+ */
+const TARGET_PITCH = 11;
+
+/** Never draw fewer than this, however narrow it gets. */
+const MIN_COLUMNS = 12;
+
 export function SpendChart({ activity }: { activity: ActivityPayload | null }) {
   /*
    * Daily is the resting view.
@@ -78,17 +92,93 @@ export function SpendChart({ activity }: { activity: ActivityPayload | null }) {
   const [range, setRange] = useState<SpendRange>('daily');
 
   const series = activity?.spend[range] ?? null;
-  const buckets = useMemo(() => series?.buckets ?? [], [series]);
+
+  /*
+   * How wide the plot actually is, measured rather than guessed.
+   *
+   * There is no way to ask CSS for a column count, and the answer changes when
+   * the workspace panel opens as well as when the window resizes, so the
+   * element has to be measured and then watched.
+   *
+   * Measured once by hand before the observer is attached, and that ordering
+   * is the whole point. A ResizeObserver delivers its first callback on the
+   * next rendering step, and a page that is not being rendered has no next
+   * rendering step: open the app in a background tab and the chart waits for a
+   * width that never arrives. `getBoundingClientRect` is synchronous and owes
+   * nothing to the compositor, so the first paint always has a number and the
+   * observer is left to do what it is actually good at, which is noticing the
+   * second one.
+   */
+  const plotRef = useRef<HTMLDivElement>(null);
+  const [plotWidth, setPlotWidth] = useState(0);
+
+  useEffect(() => {
+    const node = plotRef.current;
+    if (!node) return;
+
+    setPlotWidth(node.getBoundingClientRect().width);
+
+    const observer = new ResizeObserver(([entry]) => {
+      setPlotWidth(entry.contentRect.width);
+    });
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const all = useMemo(() => series?.buckets ?? [], [series]);
+
+  /*
+   * The tail that fits, newest always included.
+   *
+   * Taken from the end rather than the start, because the recent columns are
+   * the ones anybody is looking for and a narrow screen should lose last
+   * spring rather than this week.
+   */
+  const buckets = useMemo(() => {
+    if (all.length === 0 || plotWidth === 0) return [];
+    const fits = Math.max(MIN_COLUMNS, Math.floor(plotWidth / TARGET_PITCH));
+    return all.slice(Math.max(0, all.length - fits));
+  }, [all, plotWidth]);
+
+  const max = useMemo(() => Math.max(1, ...buckets.map((b) => b.amount)), [buckets]);
+  const total = useMemo(() => buckets.reduce((sum, b) => sum + b.amount, 0), [buckets]);
+
+  /*
+   * The tallest column of the ones on screen, which is what the chart
+   * annotates until somebody hovers something else. Recomputed against what is
+   * drawn rather than against the whole series, so the callout never points
+   * off the left edge at a column that was not taken.
+   */
+  const peakIndex = useMemo(() => {
+    let peak = 0;
+    for (let n = 1; n < buckets.length; n += 1) {
+      if (buckets[n].amount > buckets[peak].amount) peak = n;
+    }
+    return peak;
+  }, [buckets]);
 
   const [selected, setSelected] = useState(0);
 
-  // The peak is what the chart annotates until somebody hovers something else.
   useEffect(() => {
-    if (series) setSelected(series.peakIndex);
-  }, [series]);
+    setSelected(peakIndex);
+  }, [peakIndex]);
 
-  const max = useMemo(() => Math.max(1, ...buckets.map((b) => b.amount)), [buckets]);
   const current = buckets[selected] ?? null;
+
+  /**
+   * Plain words for the window actually on screen.
+   *
+   * Counted from what is drawn rather than from what was sent, so it stays
+   * true when a narrower window takes fewer columns. Whole years are said as
+   * years, because "Last 60 months" is a number somebody has to divide.
+   */
+  const window = useMemo(() => {
+    const n = buckets.length;
+    if (!series || n === 0) return 'Loading';
+    if (series.unit === 'month' && n >= 24 && n % 12 === 0) return `Last ${n / 12} years`;
+    return `Last ${n} ${series.unit}${n === 1 ? '' : 's'}`;
+  }, [buckets.length, series]);
 
   /*
    * Two positions, not one.
@@ -118,7 +208,7 @@ export function SpendChart({ activity }: { activity: ActivityPayload | null }) {
           className="pointer-events-none absolute -top-2 z-10 -translate-x-1/2 -translate-y-full"
           style={{ left: `${calloutPercent}%` }}
         >
-          <div className="rounded-xl bg-accent px-3 py-2 text-center text-ink shadow-[0_6px_16px_-8px_rgba(15,17,16,0.5)]">
+          <div className="rounded-xl bg-accent px-3 py-2 text-center text-ink shadow-[0_6px_16px_-8px_rgba(15,17,16,0.25)]">
             <div className="tabular whitespace-nowrap text-[15px] font-bold leading-none tracking-[-0.03em]">
               &#8358;{(current?.amount ?? 0).toLocaleString()}
             </div>
@@ -143,12 +233,13 @@ export function SpendChart({ activity }: { activity: ActivityPayload | null }) {
         )}
 
         <div
+          ref={plotRef}
           className="flex items-end"
           style={{ height: PLOT_HEIGHT }}
           role="img"
           aria-label={
-            series
-              ? `Outbound spend, ${series.window.toLowerCase()}. ${current?.label ?? 'Nothing'} at ${(current?.amount ?? 0).toLocaleString()} naira.`
+            current
+              ? `Outbound spend, ${window.toLowerCase()}. ${current.label} at ${current.amount.toLocaleString()} naira.`
               : 'Outbound spend, loading.'
           }
         >
@@ -174,9 +265,9 @@ export function SpendChart({ activity }: { activity: ActivityPayload | null }) {
       </div>
 
       <div className="mt-4 flex items-center justify-between border-t border-rule pt-3 text-[11px] text-ink-faint">
-        <span>{series?.window ?? 'Loading'}</span>
+        <span>{window}</span>
         <span className="tabular">
-          {series ? `₦${series.total.toLocaleString()} out` : ''}
+          {buckets.length > 0 ? `₦${total.toLocaleString()} out` : ''}
         </span>
       </div>
     </div>
