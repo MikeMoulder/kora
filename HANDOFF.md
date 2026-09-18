@@ -4,90 +4,80 @@ Living progress tracker. Updated at the end of every task.
 
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
-**Current phase:** V, Kora Agent
-**Commits:** 158
+**Current phase:** W, scheduled payments
+**Commits:** 163
 
 ---
 
 ## Next task
 
-**The agentic workflow, in two halves.** The parser has produced `timing` and
-`scheduledFor` since the first version and nothing has ever consumed them. That is the
-whole of what is missing between what KORA is and what the pitch says it is.
+**Deploy.** Scheduled payments are done, tested and on the ledger. Nothing is pushed to a
+remote and nothing is deployed, so 163 commits of this exist only on this machine and a
+judge has no link. That is now the largest single risk to the submission.
 
-1. **Scheduled payments.** A payment the agent reads as "pay Carlos on Friday" has to be
-   held rather than sent, listed somewhere the account holder can see and cancel it, and
-   then executed. Roadmap M2.
-2. **Earn while it waits.** Money held for a scheduled payment is idle, and Pollar ships
-   a real Earn API to put it to work. This is the half that turns a remittance demo into
-   an argument about what a payments agent is for.
-
-**Pollar Earn is real and typed, confirmed by reading the SDK rather than the docs.**
-`@pollar/core@0.11.3` declares four endpoints:
-
-```
-GET  /earn/providers                        ("blend" | "defindex")[], empty means disabled
-GET  /earn/opportunities?provider=          id, name, kind vault|lending, asset, apy
-GET  /earn/position?provider=&opportunity=  balance, apy, withdrawUnit
-POST /earn/build                            unsigned Soroban XDR, deposit or withdraw
-```
-
-with `getEarnProviders`, `getEarnOpportunities`, `getEarnPosition`, `earnDeposit` and
-`earnWithdraw` on the client. The SDK's own note says a provider only appears when it is
-configured, Blend needing a pool address and DeFindex an API key, and that an empty list
-means Earn is off and no Earn UI should be drawn.
-
-**Probe before building.** These are SDK endpoints on `sdk.api.pollar.xyz`, which is origin
-checked, and this app's Domains list is empty. The first thing to find out is whether
-`/earn/providers` answers at all and with what, because an empty array is a legitimate
-answer that means the Earn UI must not exist. Building a yield panel that cannot be
-reached would be inventing the one detail idea.md says explicitly not to invent.
-
-**Still true and still waiting:**
-
-**Deploy.** Nothing is pushed to a remote and nothing is deployed, so the history exists
-only on this machine and a judge has no link. Two things to check the moment it is up,
-because neither is exercised by the build:
+Four things to check the moment it is up, because none is exercised by the build:
 
 - `/dashboard` with no cookie has to answer a redirect to `/` on the deployed host. The
   proxy runs at the edge on Vercel rather than inside the Node server, which is a
   different execution path to the one tested here.
 - `/signin` has to answer 307 to `/`. It is configured in `next.config.ts` rather than in
   code, so a stale build would drop it silently.
+- `/api/schedule` has to answer with `durable: true`. It reads `hasRedis()`, and the
+  Upstash variables have to exist in Vercel's environment as well as in `.env.local`. If
+  it comes back false, every scheduled payment is being held in a serverless function's
+  memory, which is the worst possible place for money to be reserved.
+- A scheduled payment has to survive one full cycle on the deployed host: book it a
+  minute out, leave the tab open, watch it go.
 
 Add the deployed URL to Pollar under Build to Domains. Domains has no wildcards, so the
-preview URL and the production URL are two separate entries, and an SDK call from a host
-that is not listed returns 403 `ORIGIN_NOT_ALLOWED` rather than anything that reads like a
-configuration problem. This blocks Earn as well as the hand-off.
+preview URL and the production URL are two separate entries. It is matched character for
+character, confirmed in phase W3: `https://localhost:3000` and `http://127.0.0.1:3000`
+both fail where `http://localhost:3000` passes. An SDK call from a host that is not listed
+returns 403 `ORIGIN_NOT_ALLOWED`, which reads like a bug rather than a setting.
 
-**The submission write-up.** `SUBMISSION.md` has not been re-read since the dashboard, the
-payments work and the gate landed. The strongest artefact is still the Stellar transaction
-and it should be the first thing a judge sees:
+**Then: the submission write-up.** `SUBMISSION.md` has not been re-read since the
+dashboard, the payments work, the gate or any of this. Scheduled payments are the newest
+argument and are not in it.
+
+The strongest artefacts are the transactions. The scheduled one is the better story,
+because it was sent by the runner rather than by a person:
 
 ```
-tx      2c44ae641c27913d7e7fdb19ecdcf8ac6273e6ca1ba67dbe830b1eb767530508
-ledger  4736230, successful
-from    GAEHDX7IXJHG2UUCCUES63C7WBLPXJX6IHTA6TGENHDJBSZ65AB7FWQE   KORA treasury
-to      GAXMTAOXFC4CZFM3BDA52FC3Q7NHN47XJFXZV7YDQ7TCZJIPQVT63FDA   Carlos Mamani's Pollar wallet
-        https://stellar.expert/explorer/testnet/tx/2c44ae641c27913d7e7fdb19ecdcf8ac6273e6ca1ba67dbe830b1eb767530508
+scheduled  66f336a230374a604c54e8da8c500db099394151c652cc9a93dd21df2157fed2
+           ledger 4741094, successful, 0.7047460 USDC to Maria Quispe
+           reserved from the balance five seconds earlier, delivered with nobody watching
+           https://stellar.expert/explorer/testnet/tx/66f336a230374a604c54e8da8c500db099394151c652cc9a93dd21df2157fed2
+
+immediate  2c44ae641c27913d7e7fdb19ecdcf8ac6273e6ca1ba67dbe830b1eb767530508
+           ledger 4736230, successful, 14.8804771 USDC to Carlos Mamani
+           https://stellar.expert/explorer/testnet/tx/2c44ae641c27913d7e7fdb19ecdcf8ac6273e6ca1ba67dbe830b1eb767530508
 ```
 
-20,000 NGN debited from the ledger, 14.8804771 USDC delivered. Treasury 20 to 5.1195229,
-recipient wallet 0 to 14.8804771, balance 4,915,650 to 4,895,650. All three confirmed on
-Horizon.
+**Worth doing if there is time, in this order:**
 
-**Smaller, and honest about being smaller:**
+1. **The duplicate-runner hazard.** `redisSchedule.transition` does read, check, write
+   without a lock, so two runners on the same tick could in principle both claim and both
+   deliver. It cannot happen today, because the dashboard is the only trigger and
+   settlement takes seconds. It becomes real the day this runs on a cron with two
+   instances, and the failure it produces is a payment delivered twice. The fix is a Lua
+   script doing the compare and the set in one round trip, and `transition` already has
+   the right signature for it.
+2. **A cron.** One Vercel entry pointed at `POST /api/schedule/run`. Do item 1 first.
+3. **The README `## Layout` block** is stale. It lists `src/app/corridors/`, `RouteRail`
+   and `Passport`, none of which exist. It also has no mention of scheduling.
+4. **The transaction list draws the same counterparty several times in a row** on some
+   days. The opening history walks the beneficiary list forward within a day so two
+   payouts on one date are never the same person, but nothing stops a run across
+   consecutive days. Cosmetic, and it is the first thing on the dashboard.
+5. **Housekeeping, unactioned on purpose:** `AGENTS.md` asks for every `.md` except the
+   README and its dependencies to be gitignored. Ten are tracked today, including
+   `SUBMISSION.md` and this file. Untracking them is not something to do quietly the day
+   of a deadline, so it is flagged rather than done.
 
-- The README `## Layout` block is stale. It lists `src/app/corridors/`, `RouteRail` and
-  `Passport`, none of which exist any more.
-- The transaction list draws the same counterparty four times in a row on some days. The
-  opening history walks the beneficiary list forward within a day so two payouts on one
-  date are never the same person, but nothing stops a run across consecutive days. Noticed
-  while testing the agent panel, not chased.
-- Housekeeping, unactioned on purpose: `AGENTS.md` asks for every `.md` except the README
-  and its dependencies to be gitignored. Ten are tracked today, including `SUBMISSION.md`
-  and this file. Untracking them is not something to do quietly the day of a deadline, so
-  it is flagged rather than done.
+**Suspended, not abandoned.** Pollar Earn was probed and then dropped on request. Phase W3
+records what was found, `npm run probe:earn` still runs, and nothing in the app imports
+it. If it comes back, the blocker is that Earn needs a signed in Pollar user rather than
+just the publishable key.
 
 ---
 
@@ -391,6 +381,25 @@ payment.
 | 2026-09-18 | Agent panel, parsed state | Browser, 2 sentences to parsed intent | 2 full runs | Gemini answered both, corridor resolved |
 | 2026-09-18 | Destination name, before the fix | Browser, Understood as table | 1 | Failed, printed the ISO code BO |
 | 2026-09-18 | Destination name, after the fix | Browser, table and corridor note | 2 | Both read Bolivia |
+
+| 2026-09-18 | Earn probe, no Origin header | `npm run probe:earn` | 6 calls | Misleading, 403 read as an empty Domains list |
+| 2026-09-18 | Earn probe, with Origin | `npm run probe:earn` | 6 calls | 401 on the SDK door, 404 on the server door |
+| 2026-09-18 | Origin matching | `curl` against 3 spellings | 3 | Only `http://localhost:3000` passes |
+| 2026-09-18 | Corridor regression after the settle split | `npm run e2e 1000` | 40 checks | All passed, float 14.2589171 to 13.5541711 |
+| 2026-09-18 | Schedule API, happy path | Script against the running server | 9 calls | Reserve, list, run, cancel, all correct |
+| 2026-09-18 | Schedule, money balances | Balance before and after cancel | 1 | Delta exactly 0 |
+| 2026-09-18 | Schedule, double cancel | `DELETE` twice | 2 | Second refused 400, no second credit |
+| 2026-09-18 | Schedule, input guards | Past date, 10 years out, below minimum | 3 | All three refused |
+| 2026-09-18 | Scheduled runner, real delivery | Schedule at +5s, wait, run | 1 full run | 1 sent, 0 failed |
+| 2026-09-18 | That delivery, on Horizon | `GET /transactions/:hash` | 1 | successful, ledger 4741094, 0.7047460 USDC |
+| 2026-09-18 | Runner, second tick | `POST /api/schedule/run` again | 1 | due 0, no second delivery |
+| 2026-09-18 | Schedule from the send form | Browser, form to confirmation | 1 full run | Balance 4,877,650 to 4,875,650 |
+| 2026-09-18 | Scheduled panel | Browser, held, coming up, already run | 1 | All three sections correct |
+| 2026-09-18 | Agent reads a date | Browser, "pay Maria tomorrow" | 1 full run | Gemini returned 19 Sep, form opened scheduled and priced |
+| 2026-09-18 | Timing radio state | Computed style and aria-checked | 2 controls | Correct, fill and contrast as specified |
+| 2026-09-18 | Typecheck during the schedule work | `npm run typecheck` | Whole project | Clean, run 9 times |
+| 2026-09-18 | Smoke during the schedule work | `npm run smoke` | 34 checks | All passed, run 3 times |
+| 2026-09-18 | Production build with scheduling | `npm run build` | 26 routes + Proxy | Clean |
 
 ## Done so far
 
@@ -1124,10 +1133,149 @@ assumption until a real request proved it. Two sentences were parsed through the
 both came back labelled "Gemini and rules", which is the badge the panel only draws when
 `source === 'gemini'`. The gap is closed.
 
+### Phase W, scheduled payments
+
+Requested: the agentic workflow. Earn was suspended mid-task and is not built.
+
+**The one decision everything follows from: the naira leaves when the payment is
+scheduled, not when it is sent.**
+
+Debiting at due time is simpler and wrong. A balance that still shows money already
+promised to somebody is a balance you can spend twice, and the second spend does not fail
+at the point of spending. It fails on Friday, when the scheduled payment cannot cover
+itself. Reserving up front means the figure on the card is money you can actually use, and
+a scheduled payment can only fail for reasons outside the account.
+
+So a scheduled payment is not a note about the future. It is a debit that has already
+happened with a delivery still owed, which is why cancelling one writes a credit rather
+than deleting a row.
+
+**A send is now two halves.** They have had the same lifetime only because nothing could
+hold one yet:
+
+    reserve   quote, check the balance, check the float, debit
+    settle    provision the wallet, deliver the USDC, price the last mile
+
+For an immediate send those are a millisecond apart. For one due on Friday they are days
+apart, and the second half has to run with no request, no session and nobody watching.
+`settle` moved to `lib/payments` and both callers use it.
+
+The contract that makes it safe to call unattended: every failure path inside `settle`
+reverses the debit before returning, so `ok: false` always means the account is already
+whole. A runner that has to remember to clean up after itself is a runner that eventually
+will not.
+
+**The float is checked twice and those are two different checks.** The one in
+`/api/payments` runs before the debit and refuses cleanly, writing nothing. The one inside
+`settle` runs after, because a payment reserved on Monday cannot pre-flight Friday's float
+and has to reverse instead. `/api/schedule` does not check it at all: refusing to book
+Friday's payment against Wednesday's float is refusing for a reason that will not be true
+when it matters.
+
+**The quote is taken inside `settle` rather than passed in.** A payment scheduled on
+Monday for Friday is worth what Friday says it is worth. Carrying Monday's number forward
+would be the one invented figure in a corridor built to be honest about exactly this. The
+review screen says so in as many words.
+
+**Compare and set, after getting it wrong once.** The store's first guard was "only a held
+payment may move", which is correct for cancelling and useless for the runner: it claims a
+payment by moving it out of `held`, and then could not write the outcome because by then
+it was not held. The fix was `transition(ref, from, to, outcome)`, which does nothing and
+returns null unless the payment is in the state the caller named. One mechanism, three
+hazards:
+
+    held    to cancelled   a second click cancels nothing
+    held    to failed      the runner claims a payment exactly once
+    failed  to sent        only the runner holding the claim may record
+
+The alternative was a documented bypass on the store interface, and a store interface with
+a way around its own guard has no guard.
+
+**The runner claims as failed and corrects to sent.** If the process dies between the
+claim and the outcome, what is left says the payment did not go. That is the safer of the
+two wrong answers to leave in a database, because it is the one somebody checks.
+
+**Sequential, not `Promise.all`.** Every payment spends from one treasury float and
+provisions through one upstream. Four at once is four concurrent claims on a balance that
+was checked against one of them, and the float check only means anything if they take
+turns.
+
+**There is no cron, and the panel says so.** The dashboard is the scheduler: it asks once
+on load and then every minute while it is open. A payment due overnight goes out when
+somebody next opens the page, and an overdue row reads "Due now, sends on the next check"
+rather than printing a time that has passed as though it were missed. Turning this into a
+real cron is one Vercel entry pointed at `/api/schedule/run`. What is not free is
+correctness with two runners at once, which is the open hazard below.
+
+The hook is mounted on the dashboard rather than inside the panel. A payment due at nine
+has to go out at nine whether or not anybody is looking at the list of payments that have
+not gone out.
+
+**POST for the runner despite an empty body.** It spends money, and a GET that settles
+payments is one a prefetcher, a link preview or an address bar can fire.
+
+**The loop that had been open since the first commit.** `timing` and `scheduledFor` have
+come out of the parser from the beginning and nothing has ever read them, so "pay Carlos
+on Friday" produced a form that would have sent it immediately. The agent now passes the
+date into the send draft, and only when it is still ahead: a model reading "Friday" on a
+Saturday can hand back a Friday that has gone, and the form would then open on a schedule
+it cannot book.
+
+**Scheduling has its own finished state**, not the receipt with the hash blanked out. The
+sent screen's whole argument is the Stellar transaction, and none of that exists yet for a
+payment due on Friday. Rendering the same layout with the proof missing would read as a
+send that half worked.
+
+### Phase W2, two things found by testing rather than by looking
+
+**A raw timestamp in the activity feed.** The ledger entry for a held payment read "Due
+2026-09-18T10:58:34.345Z." That is the same mistake as the ISO country code in phase V2,
+in a different place: a machine instant is the right thing to store and the wrong thing to
+show. It is formatted now and names UTC, because the string is built on a server whose
+timezone is not the reader's and quietly using the server's local time would print a
+number that is wrong for almost everybody and looks right to all of them.
+
+**An invalid label.** The When block was put inside `Field`, which wraps its children in a
+`<label>`. A label names one control, so a label containing a radiogroup and a datetime
+input names the first thing it finds and silently mislabels the rest. It is a plain span
+now and each control carries its own name. The amount input gained an explicit one too.
+
+### Phase W3, Pollar Earn, probed and then suspended
+
+Earn was in scope for about an hour and the probe is worth keeping even though the feature
+is not being built, because the finding is about the whole Pollar integration rather than
+about Earn.
+
+`@pollar/core@0.11.3` ships four real Earn endpoints: `/earn/providers`,
+`/earn/opportunities`, `/earn/position` and `/earn/build`, with Blend and DeFindex behind
+them.
+
+**The first probe run was worthless and read as conclusive**, which is the worse of the two
+failure modes. A script has no origin, so `fetch` from Node sends no `Origin` header, and
+Pollar answers a request with no origin exactly as it answers one from an origin that is
+not on the list: 403 `ORIGIN_NOT_ALLOWED`. That was read as an empty Domains list.
+
+With `Origin: http://localhost:3000` the same call answers 401 `SDK_AUTH_INVALID_TOKEN`.
+Completely different fact. **The origin is accepted and always has been**; Earn wants a
+signed in Pollar user, not just the publishable key. `/applications/config` answers 200 on
+the same header, and the e2e run's own `domains` check agrees.
+
+Two more results worth not rediscovering: `https://localhost:3000` and
+`http://127.0.0.1:3000` are both 403. The Domains entry is matched character for
+character.
+
+The server door answers 404 on every Earn path, so Earn is SDK only and cannot be reached
+from a route handler the way the beneficiary wallet provisioning is.
+
+`npm run probe:earn` is kept. Nothing in the app imports it.
+
 ## Known gaps, stated plainly
 
-1. **The Pollar hand-off has never run.** Everything else is finished and tested. This one
-   step is the proof the project needs, and it is blocked on dashboard settings.
+1. ~~**The Pollar hand-off has never run.**~~ Closed. It has run many times since, most
+   recently by the scheduled runner with nobody watching. The dashboard setting it was
+   thought to be blocked on was never the problem: phase W3 shows the origin was on the
+   allowed list the whole time and the probe that said otherwise was not sending an
+   Origin header.
 2. ~~**Gemini has never been called.**~~ Closed 2026-09-18. Two sentences were parsed
    through the agent panel and both came back labelled "Gemini and rules", which is the
    badge the panel only draws when the response says `source === 'gemini'`. The model
@@ -1139,8 +1287,9 @@ both came back labelled "Gemini and rules", which is the badge the panel only dr
    so the history exists only on this machine.
 5. **Existing project docs contain em-dashes.** The preference was noted after they were
    written. Phase K6 covers the cleanup.
-6. **The operator console is visually broken.** Converting the design tokens removed the
-   amber and cyan ones it still references. It is the last unconverted screen.
+6. ~~**The operator console is visually broken.**~~ Not a gap any more. The console was
+   retired in 5ad3e3a and there is no unconverted screen left. Only two comments mention
+   it, both correctly in the past tense.
 7. **The panel video is 15.7 MB and cannot be compressed here**, since there is no ffmpeg
    on this machine. The sign in panel layers it over a finished composition so the page
    never depends on it arriving.
