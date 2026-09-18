@@ -55,20 +55,17 @@ run and there is still no Stellar transaction hash to show a judge.
 
 Walk it at `/send?intent=Send ₦250,000 to Carlos Mamani in Bolivia for the brand system.`
 
-After that, deploy, then Phase N8 below.
+Then Phase N8 below.
 
 **Phase N8. Restyle the operator console.**
 
 It is the last screen still on the deleted amber and cyan tokens, so it currently
 renders unstyled. Everything else has been converted.
 
-After that, Phase J, deploy, since judges need a link.
+Phase J, deploy, is done: the app is live on Vercel and building cleanly.
 
-Two smaller things are still open, neither blocking:
+One smaller thing is still open, not blocking:
 
-- The production build has not been run since the overview cleanup. A dev server from
-  another session holds `.next`, and `next build` would take it out from under that
-  session. Run it before deploy.
 - Two older copy buttons, in `src/components/ui.tsx` and `src/components/ui/primitives.tsx`,
   still call `navigator.clipboard` directly with no fallback and no feedback. They have the
   bug the receive panel was fixed for. `copyText` in `src/lib/utils.ts` is the replacement.
@@ -130,10 +127,6 @@ Still outstanding, and both small:
 - Optional `GEMINI_API_KEY` in `.env.local`, from aistudio.google.com/apikey. The app works
   without it and says which parser ran.
 - Still waiting on the replacement image for the sign in brand panel.
-
-A watcher ran for 30 minutes and timed out with the origin still blocked, so none of the
-Pollar settings above have been applied yet. Until then every page that mounts the Pollar
-provider logs a 403 in the console.
 
 ---
 
