@@ -144,11 +144,6 @@ function Header() {
       </div>
 
       <div className="flex items-center gap-2">
-        <Link href="/corridors" className="hidden sm:block">
-          <IconButton label="Corridor registry">
-            <ArrowUpRight className="h-4 w-4" strokeWidth={1.8} />
-          </IconButton>
-        </Link>
         <div className="relative">
           <IconButton label="Notifications">
             <Bell className="h-4 w-4" strokeWidth={1.8} />

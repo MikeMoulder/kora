@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { Globe2, LayoutGrid, Send, Settings, Sparkles, Users } from 'lucide-react';
+import { LayoutGrid, Send, Settings, Sparkles, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Monogram } from './parts';
 import { ACCOUNT } from '@/lib/demo-data';
@@ -88,11 +88,6 @@ export function Sidebar({
 
         <span className="my-1 h-px w-6 bg-rule" aria-hidden />
 
-        <RailLink
-          href="/corridors"
-          label="Corridor registry"
-          icon={<Globe2 className="h-[18px] w-[18px]" strokeWidth={1.8} />}
-        />
         <RailLink
           href="/operator"
           label="Operator console"
