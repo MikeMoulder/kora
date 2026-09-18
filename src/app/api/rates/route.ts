@@ -26,9 +26,9 @@ const CURRENCIES = [
  * typed amount rather than displaying the rate as a headline.
  */
 const PAYOUT_CURRENCIES = [
-  { code: 'BOB', name: 'Boliviano', symbol: 'Bs', country: 'BO' },
-  { code: 'COP', name: 'Colombian Peso', symbol: '$', country: 'CO' },
-  { code: 'BRL', name: 'Brazilian Real', symbol: 'R$', country: 'BR' },
+  { code: 'BOB', name: 'Boliviano', symbol: 'Bs', country: 'BO', countryName: 'Bolivia' },
+  { code: 'COP', name: 'Colombian Peso', symbol: '$', country: 'CO', countryName: 'Colombia' },
+  { code: 'BRL', name: 'Brazilian Real', symbol: 'R$', country: 'BR', countryName: 'Brazil' },
 ] as const;
 
 export async function GET() {

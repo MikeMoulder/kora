@@ -28,9 +28,11 @@ import {
 
 export interface PayoutRate {
   code: string;
+  /** The currency's name, not the country's. */
   name: string;
   symbol: string;
   country: string;
+  countryName: string;
   perNaira: number;
 }
 
@@ -139,7 +141,7 @@ interface Destination {
 function destinationsFrom(rates: RatesPayload | null): Destination[] {
   return (rates?.payouts ?? []).map((payout) => ({
     country: payout.country,
-    countryName: payout.name,
+    countryName: payout.countryName,
     currency: payout.code,
     symbol: payout.symbol,
   }));
@@ -341,14 +343,21 @@ export function SendPanel({
           </div>
         </div>
 
+        {/*
+          * The engine's own breakdown, rendered rather than recomputed.
+          * Deriving the split here from the total produced a fee that was
+          * fifty kobo out, which is exactly the class of error a payments
+          * screen must not introduce: two numbers for one fee, and the
+          * prettier one on screen.
+          */}
         <dl className="mt-6 space-y-2 border-t border-rule pt-4 text-xs">
-          <Line label="Rail fee">
-            {formatNaira(quote.fee - Math.round(amount * 0.0075))}
-          </Line>
-          <Line label="KORA spread">{formatNaira(Math.round(amount * 0.0075))}</Line>
-          <Line label="Rate">
-            1 {quote.rateSource ? 'USDC' : 'USDC'} = {quote.rate.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-          </Line>
+          {quote.breakdown
+            .filter((row) => row.label !== 'You send')
+            .map((row) => (
+              <Line key={row.label} label={row.label}>
+                {formatNaira(row.amount, { signed: row.amount < 0 })}
+              </Line>
+            ))}
           <Line label="Delivered as">
             <span className="font-semibold text-ink">
               {quote.receiveUsdc.toFixed(4)} USDC
@@ -502,6 +511,8 @@ interface KoraQuoteShape {
   rate: number;
   rateSource: string;
   receiveUsdc: number;
+  /** The engine's own arithmetic. Rendered, never recomputed. */
+  breakdown: { label: string; amount: number; currency: string; note?: string }[];
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
