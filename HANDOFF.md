@@ -11,51 +11,25 @@ Living progress tracker. Updated at the end of every task.
 
 ## Next task
 
-**One thing, and it is the flagship requirement.**
+**README and the submission write-up.** Everything below is done; this is not.
 
-The app is live and public at https://kora-mikes-projects-7ac9bd1b.vercel.app. Deployment
-protection is off, nine environment variables are set on the production project, and the
-build inlined the publishable key correctly.
+The corridor runs end to end for real. The strongest artefact is the Stellar transaction,
+and it should be the first thing a judge sees:
 
-The Nigerian leg runs end to end **in production**: quote at 186.4814327 USDC, Flutterwave
-issues a real virtual account, pays it itself a few seconds later, and the corridor credits
-on its verification. `requiresOperatorConfirmation` is false on that route now.
+```
+tx      2c44ae641c27913d7e7fdb19ecdcf8ac6273e6ca1ba67dbe830b1eb767530508
+ledger  4736230, successful
+from    GAEHDX7IXJHG2UUCCUES63C7WBLPXJX6IHTA6TGENHDJBSZ65AB7FWQE   KORA treasury
+to      GAXMTAOXFC4CZFM3BDA52FC3Q7NHN47XJFXZV7YDQ7TCZJIPQVT63FDA   Carlos Mamani's Pollar wallet
+        https://stellar.expert/explorer/testnet/tx/2c44ae641c27913d7e7fdb19ecdcf8ac6273e6ca1ba67dbe830b1eb767530508
+```
 
-The production origin is on Pollar's Domains list. `/api/pollar/status?deep=1` against
-production reports all three checks passing, and a call from the deployed page itself
-returns 200 `SDK_APPLICATION_CONFIG`.
+20,000 NGN debited from the ledger, 14.8804771 USDC delivered. Treasury 20 to 5.1195229,
+recipient wallet 0 to 14.8804771, balance 4,915,650 to 4,895,650. All three confirmed on
+Horizon.
 
-**Sign in on the hand-off screen and finish the transfer.** The Pollar leg has still
-never run, so there is still no Stellar transaction hash to show a judge. That hash is the
-single most valuable artefact left to produce.
-
-Walk it at `/send?intent=Send ₦250,000 to Carlos Mamani in Bolivia for the brand system.`
-
-Also still open, not blocking:
-
-- Set the Flutterwave webhook on their dashboard to
-  `https://kora-mikes-projects-7ac9bd1b.vercel.app/api/funding/flutterwave/webhook` with the
-  secret hash from `.env.local`. Production settles without it, because status reads verify
-  against Flutterwave directly, but the webhook is the path that does not depend on somebody
-  watching a screen.
-- Two older copy buttons, in `src/components/ui.tsx` and `src/components/ui/primitives.tsx`,
-  still call `navigator.clipboard` directly with no fallback and no feedback. They have the
-  bug the receive panel was fixed for. `copyText` in `src/lib/utils.ts` is the replacement.
-  Left alone because `primitives.tsx` is uncommitted work in progress.
-
-**Phase N8. Restyle the operator console.**
-
-It is the last screen still on the deleted amber and cyan tokens, so it currently
-renders unstyled. Everything else has been converted.
-
-Phase J, deploy, is done: the app is live on Vercel and building cleanly.
-
-One smaller thing is still open, not blocking:
-
-- Two older copy buttons, in `src/components/ui.tsx` and `src/components/ui/primitives.tsx`,
-  still call `navigator.clipboard` directly with no fallback and no feedback. They have the
-  bug the receive panel was fixed for. `copyText` in `src/lib/utils.ts` is the replacement.
-  Left alone because `primitives.tsx` is uncommitted work in progress.
+Also outstanding: the local build is ahead of production by the /send retirement and the
+payments work. Deploy before submitting.
 
 ---
 
@@ -209,6 +183,15 @@ Still outstanding, and both small:
 | 2026-09-18 | Browser SDK call from the deployed page | In-page fetch | 1 | 200 `SDK_APPLICATION_CONFIG` |
 | 2026-09-18 | Readiness probe after the CORS assertion | `/api/pollar/status` | 2 checks | Still pass, now on evidence |
 | 2026-09-18 | Smoke after the probe fix | `npm run smoke` | 34 checks | All passed |
+| 2026-09-18 | Payment refused on an empty float | `curl /api/payments` | 1 | Declined before the debit, balance untouched |
+| 2026-09-18 | Payment reversal on a failed provision | `curl` then ledger read | 1 | Debit and matching reversal, balance restored |
+| 2026-09-18 | Provisioning idempotency | `curl` with a repeated externalId | 2 | Same user and wallet returned |
+| 2026-09-18 | **Corridor end to end, real money** | `curl /api/payments` | 1 full run | **Settled, tx 2c44ae64…** |
+| 2026-09-18 | Settlement verified on Horizon | Transaction and both accounts | 3 | successful, ledger 4736230, balances match |
+| 2026-09-18 | Fee breakdown against the engine | Browser DOM read | 6 rows | Matches the quote exactly |
+| 2026-09-18 | Beneficiary to send handover | Browser | 1 | Name, country and account filled, amount empty |
+| 2026-09-18 | Build after retiring /send | `npm run build` | 22 routes | Clean |
+| 2026-09-18 | Ramp endpoints with a publishable key | `curl` countries and liquidity | 2 | `SDK_AUTH_INVALID_TOKEN`, end user session required |
 | 2026-09-18 | Static virtual account, live keys | `curl` v3 virtual-account-numbers | 2 | Docs BVN rejected at 10 digits, 11 works |
 | 2026-09-18 | Personal deposit account route | `/api/account/receiving` | 2 calls | Created once, cached, same number |
 | 2026-09-18 | Deposit to credit, API | open, poll, balance | 1 full run | 75,000 credited once, balance moved |
@@ -429,6 +412,77 @@ volume and worth knowing before anyone assumes otherwise.
 
 Proven across processes rather than asserted: a deposit made from the browser on localhost
 was read back by the production deployment from the same ledger.
+
+### Phase Q, the corridor actually moves money
+
+The corridor had a hole in the middle that three successive errors walked us into. Ada paid
+naira to KORA, and then Ada's own Pollar wallet was asked to send USDC that nothing had ever
+given it. First it had no XLM for the fee, then no USDC to send, and each fix only revealed
+the next gap. The hole was the design, not the balances.
+
+KORA does not issue USDC — Circle does. KORA holds a **float** of it and delivers from that
+float against naira it has already received, which is what every remittance company does.
+So the float moved to KORA and the wallet moved to the beneficiary.
+
+**Nobody signs in to Pollar any more.** The beneficiary's wallet is provisioned through the
+Server API, which needs no human, so a contractor in Bolivia receives a real non-custodial
+Stellar wallet without knowing Stellar exists. That removed the sign-in friction and the
+`APPLICATION_HAS_NO_REDIRECT_URIS` blocker in the same move.
+
+Order of operations in `POST /api/payments`, and the order is load bearing: quote, check the
+balance, check the float, debit, provision, deliver, reverse if delivery failed. Debiting
+before sending is deliberate — the other order lets two requests both pass the balance check
+and both send. The reversal is a compensating credit carrying its own reference rather than
+an edit, because a ledger that can forget is not a ledger. Both halves were exercised for
+real: a payment reversed cleanly on a transient provisioning failure before the retry was
+added.
+
+`/send` is gone. It asked for naira the account already holds and made the sender sign in to
+move USDC their wallet never had. Kora Agent and the beneficiary book now hand a draft to
+the send panel instead of navigating with a sentence in the URL.
+
+### Known gaps in the corridor, stated plainly
+
+These are real and neither is fixed. They belong in the README rather than being discovered
+by a judge.
+
+**1. Nothing validates the recipient's account details.** The send form takes a free-text
+"bank and account number", stores it, displays it, and never checks it against anything. A
+wrong account number would be accepted, the naira debited and the USDC delivered, and the
+error would surface when the recipient said they were never paid.
+
+Where validation belongs is Pollar's ramp, not KORA. `RampFieldSpec` in `@pollar/react`
+declares per-country payout fields with `bankType` of `CLABE`, `PIX`, `PSE`, `ACH` or
+`BREB`, bank dropdowns sourced from the anchor, placeholder masks and optional flags. The
+correct design is that the anchor says what a Bolivian payout needs and KORA collects
+exactly that. Flutterwave also verifies bank accounts, but only Nigerian ones, which is the
+wrong side of this corridor.
+
+**2. The USDC stops in the beneficiary's wallet.** Nothing cashes it out to bolivianos.
+
+The off-ramp exists and was found rather than assumed: `POST /ramps/offramp`, described as
+"funds will be sent from the user's wallet to the provided bank account", alongside
+`/ramps/quote`, `/ramps/countries`, `/ramps/liquidity` and `/ramps/kyc-status`. Pollar's
+Bolivian anchor is Stereum.
+
+Two things stop it running, and the first is correct behaviour. Calling those endpoints with
+the publishable key returns `SDK_AUTH_INVALID_TOKEN`: they require the **end user's** session,
+meaning the beneficiary's, not KORA's. A non-custodial wallet should not let the company that
+funded it drain the funds back out, so the off-ramp is the recipient's action by design. And
+Stereum's BOB ramp is mainnet, so on testnet there is no Bolivian anchor to call at all.
+
+That is why the last leg of the route rail is dashed and labelled SIMULATED, and the label
+is accurate rather than a hedge.
+
+### Warts worth knowing
+
+- `SETTLEMENT_SECRET` and `NEXT_PUBLIC_SETTLEMENT_ADDRESS` now name KORA's **treasury**, the
+  source of the USDC, not a settlement destination. Same account, opposite role. Renaming an
+  environment variable production depends on was not worth the risk on the day.
+- `src/components/Composer.tsx` is orphaned. Nothing imports it since `/send` went, but it
+  carries uncommitted local edits so it was left rather than force removed.
+- The treasury signing key sits in an environment variable. Fine for testnet, not how real
+  money is held.
 
 ### Other
 
