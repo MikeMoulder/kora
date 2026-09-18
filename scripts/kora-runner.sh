@@ -85,27 +85,98 @@ fi
 
 stamp() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 
-# --fail-with-body so a 401 still prints why, rather than curl swallowing the
-# body and leaving "exit 22" as the only clue. --max-time is generous: a tick
-# with several due payments settles them one at a time on Stellar.
-response="$(
-  curl --silent --show-error --fail-with-body \
+# The request.
+#
+# Judged on the HTTP status code, never on curl's exit code, and that is not
+# fussiness. `--retry` and `--fail-with-body` interact: with `--retry` in play,
+# some curl builds return 0 on a 404 while others return 22. Ubuntu's 8.5.0
+# returned 22 and the curl in Git Bash returned 0, from the same script against
+# the same URL. A runner that decides whether a payment went by reading an exit
+# code that varies by build is a runner that will one day log a success for an
+# error page.
+#
+# So `--fail-with-body` is gone. Without it curl exits 0 for any response it
+# managed to receive, prints the body whatever the status, and `%{http_code}`
+# says what actually happened. curl's exit code then means only what it should:
+# the request never completed at all.
+#
+# `--max-time` is generous, because a tick with several due payments settles
+# them one at a time on Stellar.
+status=0
+raw="$(
+  curl --silent --show-error \
     --max-time "${KORA_TIMEOUT:-300}" \
     --retry 2 --retry-delay 5 --retry-connrefused \
+    -w $'\n%{http_code}' \
     -X POST "${KORA_URL%/}/api/schedule/run" \
     -H "x-kora-runner: ${KORA_RUNNER_SECRET}" \
     -H 'content-length: 0'
-)" || {
-  status=$?
-  echo "$(stamp) FAILED curl exit ${status}: ${response:-<no body>}" >&2
-  exit "$status"
+)" || status=$?
+
+http="${raw##*$'\n'}"
+response="${raw%$'\n'*}"
+
+# A body that is not JSON is not ours.
+#
+# This mattered the first time somebody pointed the runner at a deployment that
+# predated the route. Next.js served its own 404 page, the body was printed in
+# full, and systemd wrote eight kilobytes of markup to the journal once a
+# minute. The useful fact, "404", was buried in it, and a host left running
+# overnight would have filled its disk with copies of an error page.
+#
+# So an HTML body is described rather than reproduced, and anything else is
+# capped. Whatever the server actually said stays recoverable with curl by hand.
+summarise() {
+  body="$1"
+
+  case "$body" in
+    '<'*|'<!'*)
+      printf 'an HTML page, %s bytes, not a JSON response from this API' "${#body}"
+      return
+      ;;
+  esac
+
+  if [ "${#body}" -gt 400 ]; then
+    printf '%s... (%s bytes total)' "${body:0:400}" "${#body}"
+  else
+    printf '%s' "${body:-<no body>}"
+  fi
 }
+
+# The request never completed. No status, nothing to read.
+if [ "$status" -ne 0 ] || [ -z "$http" ] || [ "$http" = "000" ]; then
+  echo "$(stamp) UNREACHABLE curl exit ${status}: $(summarise "$response")" >&2
+  echo "$(stamp) HINT Check KORA_URL, DNS and that the deployment is up." >&2
+  exit "${status:-1}"
+fi
+
+# It answered, but not with a success.
+case "$http" in
+  2??) ;;
+  *)
+    echo "$(stamp) FAILED http ${http}: $(summarise "$response")" >&2
+
+    # The two worth naming, because the status alone sends people to the wrong
+    # place.
+    case "$http" in
+      404)
+        echo "$(stamp) HINT 404 means this deployment has no /api/schedule/run." >&2
+        echo "$(stamp) HINT That build predates the scheduling work. Push and redeploy." >&2
+        ;;
+      401)
+        echo "$(stamp) HINT 401 is the secret. Compare KORA_RUNNER_SECRET here against the deployment's." >&2
+        ;;
+    esac
+
+    exit 22
+    ;;
+esac
 
 # Quiet unless something happened.
 #
 # A minute-by-minute log of "due 0" buries the one line that matters. Anything
-# that actually moved is printed in full, including failures, which have
-# already had their naira returned by the time this sees them.
+# that actually moved is printed in full, including failures, which have already
+# had their naira returned by the time this sees them.
 if printf '%s' "$response" | grep -q '"due":0'; then
   exit 0
 fi
