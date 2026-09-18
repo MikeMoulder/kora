@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "setup:settlement": "tsx scripts/setup-settlement.ts",
     "prepare:logo": "tsx scripts/prepare-logo.ts",
-    "prepare:icons": "tsx scripts/prepare-icons.ts"
+    "prepare:icons": "tsx scripts/prepare-icons.ts",
+    "prepare:agent": "tsx scripts/prepare-agent.ts"
   },
   "dependencies": {
     "@google/genai": "^2.23.0",
