@@ -235,20 +235,26 @@ export function SchedulePanel({
       )}
 
       {/*
-        * The limitation, on screen rather than in a comment.
+        * The limitation, on screen rather than in a comment, and only when
+        * there is one.
         *
-        * Two facts somebody needs and neither is flattering. Nothing runs
+        * Two facts somebody needs and neither is flattering: nothing runs
         * unless this page is open, and without Redis the list does not survive
         * a restart. Both are the kind of thing that otherwise gets discovered
         * during a demo, which is the worst possible moment to find out.
+        *
+        * When a real scheduler is running and the store is durable, neither
+        * applies, and the panel says nothing rather than reassuring somebody
+        * about a problem they do not have.
         */}
-      <p className="mt-5 text-[10px] leading-relaxed text-ink-faint">
-        {schedule.runner === 'cron'
-          ? 'A scheduler is expected to send due payments every minute, independently of this page. It signs its requests, so nothing in this browser can trigger a payment.'
-          : 'Due payments are sent while this dashboard is open, checked every minute. There is no scheduler running behind it, so a payment due overnight goes out when somebody next opens this page.'}
-        {!schedule.durable &&
-          ' This list is held in the server process and will not survive a restart.'}
-      </p>
+      {(schedule.runner !== 'cron' || !schedule.durable) && (
+        <p className="mt-5 text-[10px] leading-relaxed text-ink-faint">
+          {schedule.runner !== 'cron' &&
+            'Due payments are sent while this dashboard is open, checked every minute. There is no scheduler running behind it, so a payment due overnight goes out when somebody next opens this page.'}
+          {!schedule.durable &&
+            ' This list is held in the server process and will not survive a restart.'}
+        </p>
+      )}
     </div>
   );
 }

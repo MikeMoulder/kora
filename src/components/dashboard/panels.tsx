@@ -1122,16 +1122,6 @@ const AGENT_EXAMPLES = [
   'Send ₦5,000 to Diego Rojas in Bolivia for the launch film',
 ];
 
-/**
- * The slots the parser fills, in the order the result table prints them.
- *
- * Kept beside the examples rather than derived from the parsed response,
- * because this list has to exist before there is a response to derive it
- * from. It is the one duplication in the panel, so it is worth saying out
- * loud: if `Slot` rows are added below, add them here.
- */
-const AGENT_SLOTS = ['Recipient', 'Destination', 'Amount', 'Purpose', 'Timing'];
-
 interface ParsedIntent {
   intent: {
     recipientName: string | null;
@@ -1255,8 +1245,6 @@ export function AgentPanel({ onCompose }: { onCompose?: (draft: SendDraft) => vo
               {example}
             </button>
           ))}
-
-          <AgentRestingState />
         </div>
       )}
 
@@ -1457,45 +1445,6 @@ function AgentIdentity() {
           Reads one sentence into a payment. Cannot send one.
         </div>
       </div>
-    </div>
-  );
-}
-
-/**
- * The five fields the parser fills, shown before anything is typed.
- *
- * The panel used to end at the examples, and below them sat two thirds of a
- * column of nothing. Filling it with the output's own shape is the version
- * that earns the space: these are the exact five rows the "Understood as"
- * table prints, so the result is a table somebody has already seen the frame
- * of rather than a structure that appears from nowhere.
- *
- * It also teaches the input, which is the harder job. "Say it, do not fill it
- * in" does not tell anyone what to say, and a free text box with no stated
- * vocabulary is a box most people type one word into. Naming the slots names
- * the things worth putting in the sentence.
- */
-function AgentRestingState() {
-  return (
-    <div className="pt-4">
-      <SectionLabel>Fields it fills</SectionLabel>
-
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {AGENT_SLOTS.map((slot) => (
-          <span
-            key={slot}
-            className="rounded-md border border-rule px-2 py-1 text-[10px] text-ink-muted"
-          >
-            {slot}
-          </span>
-        ))}
-      </div>
-
-      <p className="mt-4 text-[10px] leading-relaxed text-ink-faint">
-        It fills those five fields and stops. It holds no signer, so the only thing it can
-        do with a sentence about money is hand the fields to the send form, where you read
-        them and confirm a quote before anything leaves the balance.
-      </p>
     </div>
   );
 }
