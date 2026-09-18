@@ -4,8 +4,8 @@ Living progress tracker. Updated at the end of every task.
 
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
-**Current phase:** X, the scheduler
-**Commits:** 165
+**Current phase:** Y, deployed
+**Commits:** 167
 
 ---
 
@@ -426,6 +426,16 @@ payment.
 | 2026-09-18 | Typecheck with runner auth | `npm run typecheck` | Whole project | Clean, run 3 times |
 | 2026-09-18 | Smoke with runner auth | `npm run smoke` | 34 checks | All passed |
 | 2026-09-18 | Co-author strip, content safety | `git diff backup HEAD` | 26 commits | Empty, messages only |
+
+| 2026-09-18 | Runner on the VPS, deployment stale | systemd, Ubuntu 24.04 | 1 | 404, HTML flooded the journal |
+| 2026-09-18 | curl exit code across builds | Same 404, two curl versions | 2 | 8.5.0 gave 22, Git Bash gave 0 |
+| 2026-09-18 | Runner, 404 path | Local, unknown route | 1 | Page described not dumped, hint, exit 22 |
+| 2026-09-18 | Runner, unreachable host | Local, closed port | 1 | UNREACHABLE, hint, exit 7 |
+| 2026-09-18 | Runner, 401 path | Local, wrong secret | 1 | Body in full, secret hint |
+| 2026-09-18 | Runner, 200 nothing due | Local stub | 1 | Silent, exit 0 |
+| 2026-09-18 | Runner, 200 one sent | Local stub | 1 | One line, exit 0 |
+| 2026-09-18 | Line endings on the VPS | systemd journal | 1 | CRLF, bad interpreter, fixed |
+| 2026-09-18 | Deployment carries the routes | VPS runner status | 1 | 404 became 401, route exists |
 
 ## Done so far
 
@@ -1374,6 +1384,60 @@ empty: messages changed, no file content did. The backup branch is
 `origin/main`. Removing those needs a force-push, which is not something to do to somebody
 else's remote without being asked.
 
+### Phase Y, the VPS scheduler, and three faults it exposed
+
+The runner was installed on a Contabo VPS against the Vercel deployment. It did not work
+first time, three times over, and each failure was worth more than the setup.
+
+**Fault one: the runner logged eight kilobytes of HTML a minute.** The deployment predated
+the route, Next.js served its own 404 page, and `--fail-with-body` printed all of it.
+systemd wrote every byte to the journal once a minute. The useful fact, "404", was buried
+in markup, and a host left running overnight would have filled its disk with copies of an
+error page. An HTML body is now described rather than reproduced, and anything else is
+capped at 400 characters.
+
+**Fault two: curl's exit code is not a fact about the response.** `--retry` and
+`--fail-with-body` interact. For the same 404 against the same URL, curl 8.5.0 on Ubuntu
+returned 22 and the curl in Git Bash returned 0. The script branched on that, so the same
+error was a failure on one machine and a success on the other.
+
+`--fail-with-body` is gone. Without it curl exits 0 for any response it managed to receive
+and `%{http_code}` says what happened, which leaves curl's exit code meaning only that the
+request never completed. Non-2xx is a failure whatever curl thought. 404 and 401 carry a
+named hint, because a status code alone sends people to the wrong place: 404 here is a
+deployment that predates the route, which is a redeploy and not a credential problem.
+
+**Fault three: the file reached the VPS with CRLF endings.** `/usr/bin/env: 'bash\\r': No
+such file or directory`, which names bash and sends the reader to bash.
+
+`.gitattributes` was added earlier in the session for exactly this, and it worked: Git's
+stored blob has zero carriage returns. It did not help, because the file was copied from
+the working tree rather than from Git, and the working tree had CRLF. Python's `open` in
+text mode translates `\\n` to `\\r\\n` on Windows, so every edit made to that script through
+a Python rewrite reintroduced them.
+
+Worth remembering rather than just fixed: `.gitattributes` governs what Git stores and
+what a fresh checkout produces. It does nothing about a file a tool wrote after checkout.
+`git checkout -- <file>` after a rewrite restores the declared endings, and
+`tr -cd '\\r' < file | wc -c` answers the question in one command.
+
+**The sequence that proved it, from the journal:**
+
+```
+13:32:51  status 127                      not runnable
+13:33:53  /usr/bin/env: 'bash\\r'          CRLF
+13:34:56  FAILED http 401 + hint          runs, route exists, secret missing
+```
+
+404 becoming 401 is the load bearing line. That status is only reachable once
+`/api/schedule/run` exists, so it is the proof the deployment carries the scheduling work.
+
+**What is deployed and what is not.** All 29 commits are on
+`github.com/MikeMoulder/kora`, the deployment serves the schedule routes, the VPS timer is
+installed and firing every minute, and the script's diagnostics are readable. The one
+remaining step is `KORA_RUNNER_SECRET` in Vercel's environment. Until it is set the run
+route is open to the internet and `GET /api/schedule` reports `runner: 'dashboard'`.
+
 ## Known gaps, stated plainly
 
 1. ~~**The Pollar hand-off has never run.**~~ Closed. It has run many times since, most
@@ -1388,8 +1452,11 @@ else's remote without being asked.
 3. **Next.js 16 docs were not read before writing code**, which AGENTS.md asks for. The
    build and typecheck are clean, but that is not the same as being correct. Phase G covers
    the audit.
-4. **Nothing is deployed.** Judges will want a link. Nothing is pushed to a remote either,
-   so the history exists only on this machine.
+4. ~~**Nothing is deployed.**~~ Closed 2026-09-18. All 29 commits are on
+   `github.com/MikeMoulder/kora` and the deployment serves the scheduling routes: the VPS
+   runner's 404 became a 401, which is only reachable once `/api/schedule/run` exists.
+   What remains is `KORA_RUNNER_SECRET` in Vercel's environment, without which the run
+   route is open to the internet and the VPS timer cannot authenticate.
 5. **Existing project docs contain em-dashes.** The preference was noted after they were
    written. Phase K6 covers the cleanup.
 6. ~~**The operator console is visually broken.**~~ Not a gap any more. The console was
