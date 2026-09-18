@@ -19,7 +19,9 @@
  *
  * Verified against the live testnet API rather than the docs alone:
  *   POST /v1/users            201 SERVER_USER_REGISTERED
- *   POST /v1/users/with-wallet 502 WALLET_CREATION_FAILED, unfunded reserve
+ *   POST /v1/users/with-wallet 201 SERVER_USER_WALLET_CREATED, once the
+ *                             reserve wallet is funded; 502
+ *                             WALLET_CREATION_FAILED while it is empty
  *   POST /v1/tokens/verify    401 SDK_AUTH_INVALID_TOKEN on a bogus token
  */
 
@@ -128,7 +130,17 @@ export interface RegisteredUser {
 }
 
 export interface RegisteredUserWithWallet extends RegisteredUser {
-  wallet?: { publicKey: string };
+  /**
+   * The provisioned Stellar account.
+   *
+   * Named `walletAddress` and not `wallet.publicKey`. That is what the live
+   * testnet API returns, checked against a real 201 rather than inferred from
+   * the wallets section of the docs, which identifies wallets by public key
+   * everywhere else.
+   */
+  walletAddress: string;
+  /** True once the reserve is sponsored and the account exists on-chain. */
+  funded: boolean;
 }
 
 /** Register a person against the app. No wallet, no on-chain footprint. */

@@ -170,7 +170,7 @@ async function checkWalletProvisioning(): Promise<Check> {
     return {
       ...base,
       state: 'pass',
-      detail: 'Pollar provisioned a Stellar wallet, so the reserve wallet is funded.',
+      detail: `Pollar provisioned ${result.content.walletAddress}, funded ${result.content.funded}. The reserve wallet is paying the sponsored reserve.`,
       fix: '',
     };
   }
