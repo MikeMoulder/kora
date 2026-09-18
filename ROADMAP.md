@@ -24,7 +24,7 @@ Last updated: 2026-09-18
 | Operator console | DONE, not yet restyled |
 | Sign in screen | DONE, new black and white direction |
 | Pollar hand-off | Written, BLOCKED, never executed once |
-| Commits | 50, target met, continuing |
+| Commits | 59 |
 | Deployed | No |
 | Submitted | No |
 
@@ -266,14 +266,17 @@ is monochrome, which removes that device and needs a replacement.
 | Item | State | Notes |
 | --- | --- | --- |
 | N1 Sign in screen | DONE | Split layout, neutral scale, simulated session |
-| N2 Logo asset pipeline | DONE | Transparent trimmed mark derived from the supplied file |
-| N3 Replacement panel image | BLOCKED | Waiting on the file. One constant swaps it in |
-| N4 Decide how mono encodes leg ownership | DECISION NEEDED | See below |
-| N5 Black and white design tokens | TODO | Replaces the amber and cyan token set |
-| N6 Main payment flow restyle | TODO | |
-| N7 Corridor registry restyle | TODO | |
-| N8 Operator console restyle | TODO | |
+| N2 Logo asset pipeline | DONE | Both marks derived from the supplied files |
+| N3 Panel footage | DONE | Layered over the composition, since it cannot be compressed here |
+| N4 Decide how mono encodes leg ownership | DONE | Fill and weight, zero colour |
+| N5 Black and white design tokens | DONE | `leg-ours`, `leg-theirs`, `leg-simulated` |
+| N6 Main payment flow restyle | DONE | Now at `/send`, takes an intent through the query string |
+| N7 Corridor registry restyle | DONE | |
+| N8 Operator console restyle | TODO | Last screen on the deleted tokens, renders unstyled |
 | N9 Route the app behind sign in | TODO | Also stops Pollar mounting on the sign in page |
+| N10 Account dashboard | DONE | Home page, naira based, African currency strip |
+| N11 Kora Agent panel | DONE | Parses to intent, holds no signer, hands off to the engine |
+| N12 Beneficiaries panel | DONE | Search, favourites, pay straight into the flow |
 
 **N4, the open decision.** Colour currently carries the central argument of the project:
 amber is the leg KORA built, cyan is the leg Pollar owns. In black and white that device

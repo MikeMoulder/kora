@@ -5,26 +5,38 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 50, target met, continuing
+**Commits:** 59
 
 ---
 
 ## Next task
 
-**Phase N4. Settle how a monochrome interface shows which leg belongs to whom.**
+**Phase N8. Restyle the operator console.**
+
+It is the last screen still on the deleted amber and cyan tokens, so it currently
+renders unstyled. Everything else has been converted.
+
+After that, Phase J, deploy, since judges need a link.
+
+---
+
+## Earlier decision, now settled
+
+**Phase N4. How a monochrome interface shows which leg belongs to whom.**
 
 Colour currently carries the central argument of the project: amber is the leg KORA built,
 cyan is the leg Pollar owns. Black and white removes that. Something has to replace it
 before the rest of the screens are restyled, because it affects every component.
 
-Three options: encode ownership through fill and weight, keep one accent colour used only
-for Pollar's leg, or drop the visual distinction and rely on labels.
+Settled on fill and weight, zero colour. Solid black is the leg KORA built, a hairline
+outline is the leg Pollar owns, a dashed outline is simulated. It survives greyscale, a
+washed out projector and a colour blind reader, none of which the amber and cyan version
+did. The three rules live as `leg-ours`, `leg-theirs` and `leg-simulated` in globals.css so
+components cannot drift from them.
 
-After that, N5, the token set, then the screens one at a time.
-
-Phase G, the Next.js audit, is still outstanding but partly addressed: the navigation docs
-were read before writing the sign in screen, which is how the react-router-dom swap was
-confirmed correct.
+Phase G, the Next.js audit, is still outstanding but partly addressed: the navigation and
+useSearchParams docs were both read before the code that needed them, which is how the
+react-router-dom swap and the Suspense boundary were confirmed correct.
 
 ---
 
@@ -77,6 +89,14 @@ provider logs a 403 in the console.
 | 2026-09-18 | Sign in layout, 1280px | Browser measurement | Overflow, image ratio | Clean after fix |
 | 2026-09-18 | Sign in layout, 390px | Browser measurement | Overflow | None, brand panel correctly hidden |
 | 2026-09-18 | Console audit, sign in | Browser console | Warnings and errors | 1 image warning found and fixed, Pollar 403s remain |
+| 2026-09-18 | Video playback, sign in | Browser state probe | readyState, paused, opacity | Plays, fade-in correct, freeze traced to a hidden pane |
+| 2026-09-18 | Cross-rate endpoint | `curl /api/rates` | 4 African + 3 payout | All live, sourced and dated |
+| 2026-09-18 | Dashboard render, 1440px | Browser | Layout, panels | Clean |
+| 2026-09-18 | Kora Agent, browser | Sentence to parsed intent | 1 full run | Parsed by Gemini, corridor resolved |
+| 2026-09-18 | Beneficiaries panel | Browser | Search, list, pay | Working |
+| 2026-09-18 | Dashboard to engine handoff | `/send?intent=` | 1 full run | Auto-parsed, quoted live at 250,000 NGN to 186.48 USDC |
+| 2026-09-18 | Production build with dashboard | `npm run build` | 14 routes | Clean |
+| 2026-09-18 | Smoke after dashboard | `npm run smoke` | 34 checks | All passed, no regression |
 
 **Total automated checks passing: 34.**
 
@@ -152,6 +172,21 @@ The supplied logo was an opaque PNG with the background baked in, so it could no
 any surface except its own shade. `npm run prepare:logo` now derives a transparent trimmed
 mark from it, 893 KB down to 46 KB.
 
+### Phase N, dashboard
+
+The reference dashboard rebuilt in monochrome and rebased on the naira. Rail, balance card,
+African currency strip quoted per 1,000 naira from the live feed, activity list, dot matrix
+spend chart, and a right hand workspace the rail switches between a manual keypad, Kora
+Agent and the beneficiary book.
+
+Kora Agent reads a sentence into a structured intent and stops. It holds no signer. Both it
+and the manual keypad compose the same sentence and hand it to the same corridor engine at
+`/send`, so there is no second payment path to keep honest.
+
+Photo avatars were replaced with monogram discs, filled for a person and outlined for a
+business. Money in and out is carried by arrow direction and fill rather than green and
+red, so it survives greyscale.
+
 ### Other
 
 A real Stellar testnet settlement account, created and funded by a script in the repo,
@@ -173,3 +208,8 @@ with a USDC trustline open:
    so the history exists only on this machine.
 5. **Existing project docs contain em-dashes.** The preference was noted after they were
    written. Phase K6 covers the cleanup.
+6. **The operator console is visually broken.** Converting the design tokens removed the
+   amber and cyan ones it still references. It is the last unconverted screen.
+7. **The panel video is 15.7 MB and cannot be compressed here**, since there is no ffmpeg
+   on this machine. The sign in panel layers it over a finished composition so the page
+   never depends on it arriving.
