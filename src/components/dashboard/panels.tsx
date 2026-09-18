@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowDownLeft,
   ArrowRight,
+  ArrowUpRight,
   Check,
   Copy,
-  Delete,
   Search,
   Sparkles,
   Star,
@@ -116,46 +116,136 @@ function intentHref(text: string) {
 
 // ── Send ──────────────────────────────────────────────────────────────────
 
+/**
+ * Where the money actually leaves.
+ *
+ * Three steps in one panel: who and how much, then what it costs, then what
+ * happened. No page change, because the balance it is spending from is on the
+ * same screen and watching it move is the point.
+ *
+ * Nothing is prefilled. A send screen that arrives with a recipient already in
+ * it is asking someone to check a name rather than type one, and checking is
+ * the thing people skip. Saved recipients are one tap away and never assumed.
+ */
+
+interface Destination {
+  country: string;
+  countryName: string;
+  currency: string;
+  symbol: string;
+}
+
+/** The destinations Pollar settles, from the same feed the quote uses. */
+function destinationsFrom(rates: RatesPayload | null): Destination[] {
+  return (rates?.payouts ?? []).map((payout) => ({
+    country: payout.country,
+    countryName: payout.name,
+    currency: payout.code,
+    symbol: payout.symbol,
+  }));
+}
+
+interface SentPayment {
+  reference: string;
+  recipient: { name: string; countryName: string; wallet: string };
+  sent: { amount: number; currency: string };
+  delivered: { amount: number; asset: string; hash: string; explorer: string };
+}
+
 export function SendPanel({
   rates,
   balance,
+  onSent,
 }: {
   rates: RatesPayload | null;
   balance: BalancePayload | null;
+  onSent?: () => void;
 }) {
-  const router = useRouter();
-  const [beneficiary, setBeneficiary] = useState<Beneficiary>(BENEFICIARIES[0]);
-  const [digits, setDigits] = useState('100000');
-  const [note, setNote] = useState('');
+  const destinations = useMemo(() => destinationsFrom(rates), [rates]);
+
+  const [step, setStep] = useState<'form' | 'review' | 'done'>('form');
   const [picking, setPicking] = useState(false);
 
+  const [name, setName] = useState('');
+  const [country, setCountry] = useState('');
+  const [account, setAccount] = useState('');
+  const [digits, setDigits] = useState('');
+  const [note, setNote] = useState('');
+
+  const [quote, setQuote] = useState<KoraQuoteShape | null>(null);
+  const [sent, setSent] = useState<SentPayment | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const amount = Number(digits || '0');
-  const payout = rates?.payouts.find((p) => p.code === beneficiary.payoutCurrency) ?? null;
-  const receives = payout ? amount * payout.perNaira : null;
+  const available = balance?.balance ?? 0;
+  const destination = destinations.find((d) => d.country === country) ?? null;
 
-  const press = useCallback((key: string) => {
-    setDigits((current) => {
-      if (key === 'del') return current.slice(0, -1);
-      if (current.length >= 12) return current;
-      if (current === '0') return key;
-      return current + key;
-    });
-  }, []);
+  const ready = name.trim().length > 1 && country !== '' && amount >= 1000;
 
-  const send = useCallback(() => {
-    const purpose = note.trim() ? ` for ${note.trim()}` : '';
-    router.push(
-      intentHref(
-        `Send ₦${amount.toLocaleString()} to ${beneficiary.name} in ${beneficiary.countryName}${purpose}.`,
-      ),
-    );
-  }, [amount, beneficiary, note, router]);
+  const review = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+
+    try {
+      const body = await fetch('/api/quote', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ corridorId: 'NG.NGN.NIP.onramp', amount }),
+      }).then((r) => r.json());
+
+      if (!body.ok) throw new Error(body.error ?? 'Could not price that.');
+
+      const priced = (body.data.quote ?? body.data) as KoraQuoteShape;
+      setQuote(priced);
+      setStep('review');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not price that.');
+    } finally {
+      setBusy(false);
+    }
+  }, [amount]);
+
+  const send = useCallback(async () => {
+    if (!destination) return;
+
+    setBusy(true);
+    setError(null);
+
+    try {
+      const body = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          recipientName: name.trim(),
+          country: destination.country,
+          countryName: destination.countryName,
+          payoutCurrency: destination.currency,
+          account: account.trim() || undefined,
+          amount,
+          note: note.trim() || undefined,
+        }),
+      }).then((r) => r.json());
+
+      if (!body.ok) throw new Error(body.error ?? 'The payment did not go through.');
+
+      setSent(body.data as SentPayment);
+      setStep('done');
+      onSent?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The payment did not go through.');
+    } finally {
+      setBusy(false);
+    }
+  }, [account, amount, destination, name, note, onSent]);
 
   if (picking) {
     return (
       <BeneficiaryPicker
         onPick={(b) => {
-          setBeneficiary(b);
+          setName(b.name);
+          setCountry(b.country);
+          setAccount(b.account);
           setPicking(false);
         }}
         onCancel={() => setPicking(false)}
@@ -163,98 +253,263 @@ export function SendPanel({
     );
   }
 
+  // ── Done ────────────────────────────────────────────────────────────────
+  if (step === 'done' && sent) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gain text-paper">
+            <Check className="h-4 w-4" strokeWidth={2.4} />
+          </span>
+          <div>
+            <div className="text-sm font-semibold">Sent</div>
+            <div className="text-[11px] text-ink-faint">{sent.reference}</div>
+          </div>
+        </div>
+
+        <dl className="mt-5 space-y-2 text-xs">
+          <Line label="You sent">{formatNaira(sent.sent.amount)}</Line>
+          <Line label="Delivered">
+            <span className="font-semibold text-ink">
+              {sent.delivered.amount.toFixed(7)} {sent.delivered.asset}
+            </span>
+          </Line>
+          <Line label="To">{sent.recipient.name}</Line>
+        </dl>
+
+        <div className="mt-4 rounded-xl border border-rule p-3">
+          <div className="text-[10px] uppercase tracking-[0.12em] text-ink-faint">
+            {sent.recipient.name}&rsquo;s Pollar wallet
+          </div>
+          <div className="mt-1 break-all font-mono text-[10px] text-ink-soft">
+            {sent.recipient.wallet}
+          </div>
+          <p className="mt-2 text-[10px] leading-relaxed text-ink-faint">
+            Created by KORA through Pollar. They never signed up for anything.
+          </p>
+        </div>
+
+        <a
+          href={sent.delivered.explorer}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper transition-colors hover:bg-ink-soft"
+        >
+          View on Stellar
+          <ArrowUpRight className="h-4 w-4" strokeWidth={2} />
+        </a>
+
+        <button
+          type="button"
+          onClick={() => {
+            setStep('form');
+            setSent(null);
+            setName('');
+            setCountry('');
+            setAccount('');
+            setDigits('');
+            setNote('');
+          }}
+          className="mt-3 text-[11px] text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
+        >
+          Send another
+        </button>
+      </div>
+    );
+  }
+
+  // ── Review ──────────────────────────────────────────────────────────────
+  if (step === 'review' && quote && destination) {
+    const receives = rates?.payouts.find((p) => p.code === destination.currency);
+
+    return (
+      <div className="flex h-full flex-col">
+        <button
+          type="button"
+          onClick={() => setStep('form')}
+          className="self-start text-[11px] text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
+        >
+          &larr; Back
+        </button>
+
+        <div className="mt-4 text-center">
+          <div className="tabular text-[30px] font-bold leading-none tracking-[-0.03em]">
+            {formatNaira(amount)}
+          </div>
+          <div className="mt-1.5 text-xs text-ink-faint">
+            to {name} in {destination.countryName}
+          </div>
+        </div>
+
+        <dl className="mt-6 space-y-2 border-t border-rule pt-4 text-xs">
+          <Line label="Rail fee">
+            {formatNaira(quote.fee - Math.round(amount * 0.0075))}
+          </Line>
+          <Line label="KORA spread">{formatNaira(Math.round(amount * 0.0075))}</Line>
+          <Line label="Rate">
+            1 {quote.rateSource ? 'USDC' : 'USDC'} = {quote.rate.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+          </Line>
+          <Line label="Delivered as">
+            <span className="font-semibold text-ink">
+              {quote.receiveUsdc.toFixed(4)} USDC
+            </span>
+          </Line>
+          <Line label="They receive">
+            {receives
+              ? `${receives.symbol}${(amount * receives.perNaira).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+              : '—'}
+          </Line>
+          <Line label="Balance after">{formatNaira(available - amount)}</Line>
+        </dl>
+
+        {error && (
+          <p className="mt-4 rounded-lg border border-ink px-3 py-2.5 text-[11px] leading-relaxed">
+            {error}
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={send}
+          disabled={busy}
+          className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
+        >
+          {busy && <Spinner />}
+          {busy ? 'Sending' : `Send ${formatNaira(amount)}`}
+        </button>
+
+        <p className="mt-3 text-[10px] leading-relaxed text-ink-faint">
+          Your naira is debited, then KORA delivers USDC from its float to a Pollar wallet
+          for {name}. If the delivery fails the naira comes straight back.
+        </p>
+      </div>
+    );
+  }
+
+  // ── Form ────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between">
         <span className="inline-flex items-center gap-2 rounded-full bg-ink px-3 py-1.5 text-[11px] font-medium text-paper">
           <Flag code={ACCOUNT.country} size={13} />
-          NGN &middot;&middot;&middot;&middot; 4471
+          {ACCOUNT.currency} balance
         </span>
         <button
           type="button"
           onClick={() => setPicking(true)}
           className="text-xs text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
         >
-          Change
+          Saved
         </button>
       </div>
 
-      <div className="mt-5 flex items-center gap-3">
-        <Monogram name={beneficiary.name} size={42} />
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold">{beneficiary.name}</div>
-          <div className="truncate text-xs text-ink-faint">{beneficiary.account}</div>
-        </div>
+      <div className="tabular mt-2 text-[11px] text-ink-faint">
+        {formatNaira(available)} available
       </div>
 
-      <div className="mt-7 text-center">
-        <div className="tabular text-[40px] font-semibold leading-none tracking-[-0.03em]">
-          &#8358;{amount.toLocaleString()}
-        </div>
-        <div className="mt-2 text-xs text-ink-faint">
-          Balance {formatNaira(balance?.balance ?? ACCOUNT.balance)}
-        </div>
+      <div className="mt-5 space-y-3">
+        <Field label="Recipient">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Full name"
+            className="h-10 w-full rounded-lg border border-rule bg-paper-sunk px-3 text-sm outline-none transition-colors placeholder:text-ink-faint focus:border-ink focus:bg-paper"
+          />
+        </Field>
+
+        <Field label="Destination">
+          <select
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+            className="h-10 w-full rounded-lg border border-rule bg-paper-sunk px-3 text-sm outline-none transition-colors focus:border-ink focus:bg-paper"
+          >
+            <option value="">Choose a country</option>
+            {destinations.map((d) => (
+              <option key={d.country} value={d.country}>
+                {d.countryName} · {d.currency}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Their account">
+          <input
+            value={account}
+            onChange={(e) => setAccount(e.target.value)}
+            placeholder="Bank and account number"
+            className="h-10 w-full rounded-lg border border-rule bg-paper-sunk px-3 text-sm outline-none transition-colors placeholder:text-ink-faint focus:border-ink focus:bg-paper"
+          />
+        </Field>
+
+        <Field label="Amount">
+          <div className="flex h-10 items-center gap-1.5 rounded-lg border border-rule bg-paper-sunk px-3 focus-within:border-ink focus-within:bg-paper">
+            <span className="text-sm font-semibold">&#8358;</span>
+            <input
+              value={digits ? amount.toLocaleString() : ''}
+              onChange={(e) => setDigits(e.target.value.replace(/[^0-9]/g, '').slice(0, 9))}
+              inputMode="numeric"
+              placeholder="0"
+              className="tabular w-full bg-transparent text-sm font-medium outline-none placeholder:text-ink-faint"
+            />
+          </div>
+        </Field>
+
+        <Field label="Note">
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="What it is for"
+            maxLength={60}
+            className="h-10 w-full rounded-lg border border-rule bg-paper-sunk px-3 text-sm outline-none transition-colors placeholder:text-ink-faint focus:border-ink focus:bg-paper"
+          />
+        </Field>
       </div>
 
-      <dl className="mt-6 space-y-2 border-t border-rule pt-4 text-xs">
-        <Line label="Exchange rate">
-          {payout
-            ? `₦1 = ${payout.perNaira.toFixed(6)} ${payout.code}`
-            : '—'}
-        </Line>
-        <Line label="Recipient receives">
-          {receives !== null && payout ? (
-            <span className="font-semibold text-ink">
-              {payout.symbol}
-              {receives.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-            </span>
-          ) : (
-            '—'
-          )}
-        </Line>
-        <Line label="Balance after">
-          {formatNaira((balance?.balance ?? ACCOUNT.balance) - amount)}
-        </Line>
-        <Line label="Transaction fee">Quoted on the next screen</Line>
-      </dl>
+      {amount > available && (
+        <p className="mt-3 text-[11px] text-loss">
+          That is more than the {formatNaira(available)} available.
+        </p>
+      )}
 
-      <input
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder="Add a note"
-        maxLength={60}
-        className="mt-4 h-10 w-full rounded-lg border border-rule bg-paper-sunk px-3 text-sm outline-none transition-colors placeholder:text-ink-faint focus:border-ink focus:bg-paper"
-      />
-
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((key) => (
-          <Key key={key} onPress={() => press(key)}>
-            {key}
-          </Key>
-        ))}
-        <Key onPress={() => press('000')} className="text-[15px]">
-          000
-        </Key>
-        <Key onPress={() => press('0')}>0</Key>
-        <Key onPress={() => press('del')} label="Delete">
-          <Delete className="h-4 w-4" strokeWidth={1.8} />
-        </Key>
-      </div>
+      {error && (
+        <p className="mt-3 rounded-lg border border-ink px-3 py-2.5 text-[11px] leading-relaxed">
+          {error}
+        </p>
+      )}
 
       <button
         type="button"
-        onClick={send}
-        disabled={amount <= 0}
+        onClick={review}
+        disabled={!ready || busy || amount > available}
         className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
       >
-        Review payment
-        <ArrowRight className="h-4 w-4" strokeWidth={2} />
+        {busy && <Spinner />}
+        {busy ? 'Pricing' : 'Review payment'}
+        {!busy && <ArrowRight className="h-4 w-4" strokeWidth={2} />}
       </button>
 
-      <p className="mt-3 text-center text-[10px] leading-relaxed text-ink-faint">
-        Review runs the real corridor engine. Nothing moves until you confirm a quote.
+      <p className="mt-3 text-[10px] leading-relaxed text-ink-faint">
+        Minimum &#8358;1,000. Review prices it against the live rate through the real
+        corridor engine. Nothing moves until you confirm.
       </p>
     </div>
+  );
+}
+
+/** What the corridor engine returns, narrowed to what this panel reads. */
+interface KoraQuoteShape {
+  fee: number;
+  rate: number;
+  rateSource: string;
+  receiveUsdc: number;
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="text-[10px] uppercase tracking-[0.12em] text-ink-faint">{label}</span>
+      <div className="mt-1.5">{children}</div>
+    </label>
   );
 }
 
@@ -264,32 +519,6 @@ function Line({ label, children }: { label: string; children: React.ReactNode })
       <dt className="text-ink-muted">{label}</dt>
       <dd className="tabular text-right text-ink">{children}</dd>
     </div>
-  );
-}
-
-function Key({
-  children,
-  onPress,
-  label,
-  className,
-}: {
-  children: React.ReactNode;
-  onPress: () => void;
-  label?: string;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onPress}
-      aria-label={label}
-      className={cn(
-        'tabular flex h-11 items-center justify-center rounded-lg bg-paper-sunk text-[17px] font-medium transition-colors hover:bg-paper-edge active:bg-ink active:text-paper',
-        className,
-      )}
-    >
-      {children}
-    </button>
   );
 }
 

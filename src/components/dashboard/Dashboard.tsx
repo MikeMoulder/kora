@@ -96,7 +96,9 @@ export function Dashboard() {
 
             {panel !== null && (
               <PanelFrame title={PANEL_TITLES[panel]} onClose={() => open(null)}>
-                {panel === 'send' && <SendPanel rates={rates} balance={balance} />}
+                {panel === 'send' && (
+                  <SendPanel rates={rates} balance={balance} onSent={refresh} />
+                )}
                 {panel === 'agent' && <AgentPanel />}
                 {panel === 'beneficiaries' && <BeneficiaryPanel />}
                 {panel === 'receive' && <ReceivePanel onCredited={refresh} />}
