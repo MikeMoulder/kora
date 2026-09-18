@@ -5,57 +5,44 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 85
+**Commits:** 87
 
 ---
 
 ## Next task
 
-**Three things, all waiting on a person rather than on code.**
+**One thing, and it is the flagship requirement.**
 
-The app is deployed to production at
-`https://kora-mikes-projects-7ac9bd1b.vercel.app`, project `mikes-projects-7ac9bd1b/kora`,
-build clean across 18 routes. It is not usable yet for two reasons.
+The app is live and public at https://kora-mikes-projects-7ac9bd1b.vercel.app. Deployment
+protection is off, nine environment variables are set on the production project, and the
+build inlined the publishable key correctly.
 
-**1. Turn off Vercel Deployment Protection.** Every URL answers 302 to an SSO login, so
-judges cannot open it and Flutterwave cannot deliver a webhook. Vercel dashboard, project
-`kora`, Settings then Deployment Protection, set Vercel Authentication to Disabled.
+The Nigerian leg runs end to end **in production**: quote at 186.4814327 USDC, Flutterwave
+issues a real virtual account, pays it itself a few seconds later, and the corridor credits
+on its verification. `requiresOperatorConfirmation` is false on that route now.
 
-Worth knowing before flipping it: `/operator` and the confirm endpoint behind it become
-public too. On testnet with simulated money that is an acceptable trade for a demo, but it
-is a real door.
+**Add the production origin to Pollar.** Build then Domains, add
+`https://kora-mikes-projects-7ac9bd1b.vercel.app`. Until then `/api/pollar/status` on
+production reports `backend: pass, browser: blocked`, and the hand-off screen cannot sign
+anyone in. The backend already works there because the Server API is not origin checked.
 
-**2. Push the environment variables.** The project has none at all, so the deployment runs
-fully degraded. From the repo, with `.env.local` populated:
-
-```
-for k in NEXT_PUBLIC_POLLAR_PUBLISHABLE_KEY POLLAR_SECRET_KEY NEXT_PUBLIC_SETTLEMENT_ADDRESS \
-         SETTLEMENT_SECRET NEXT_PUBLIC_STELLAR_NETWORK NEXT_PUBLIC_SETTLEMENT_ASSET \
-         GEMINI_API_KEY GEMINI_MODEL FLW_SECRET_KEY NEXT_PUBLIC_FLW_PUBLIC_KEY FLW_SECRET_HASH; do
-  v=$(grep "^$k=" .env.local | cut -d= -f2-)
-  [ -n "$v" ] && printf '%s' "$v" | npx vercel env add "$k" production --force
-done
-npx vercel deploy --prod --yes
-```
-
-The redeploy is not optional: `NEXT_PUBLIC_` values are inlined at build time, so the
-existing build has empty strings baked in.
-
-Then add the deployed origin to Pollar under Build then Domains, and set the Flutterwave
-webhook to `<deployed-url>/api/funding/flutterwave/webhook` with the secret hash from
-`.env.local`.
-
-**3. Sign in to Pollar on the hand-off screen and finish the transfer.**
-
-This is the flagship requirement and it is now one click from done. The African leg runs
-end to end: intent parsed, corridor resolved, quote priced from the live rate, funding
-reference issued, payment reported, settled. The hand-off screen renders and offers
-Continue with Google. Nobody has clicked it yet, so the Pollar transfer has still never
-run and there is still no Stellar transaction hash to show a judge.
+**Then sign in on the hand-off screen and finish the transfer.** The Pollar leg has still
+never run, so there is still no Stellar transaction hash to show a judge. That hash is the
+single most valuable artefact left to produce.
 
 Walk it at `/send?intent=Send ₦250,000 to Carlos Mamani in Bolivia for the brand system.`
 
-Then Phase N8 below.
+Also still open, not blocking:
+
+- Set the Flutterwave webhook on their dashboard to
+  `https://kora-mikes-projects-7ac9bd1b.vercel.app/api/funding/flutterwave/webhook` with the
+  secret hash from `.env.local`. Production settles without it, because status reads verify
+  against Flutterwave directly, but the webhook is the path that does not depend on somebody
+  watching a screen.
+- Two older copy buttons, in `src/components/ui.tsx` and `src/components/ui/primitives.tsx`,
+  still call `navigator.clipboard` directly with no fallback and no feedback. They have the
+  bug the receive panel was fixed for. `copyText` in `src/lib/utils.ts` is the replacement.
+  Left alone because `primitives.tsx` is uncommitted work in progress.
 
 **Phase N8. Restyle the operator console.**
 
@@ -212,6 +199,12 @@ Still outstanding, and both small:
 | 2026-09-18 | Corridor with Flutterwave, after the expiry fix | API, quote to status | 1 full run | awaiting_payment to funded, 186.4814327 USDC |
 | 2026-09-18 | Smoke after the expiry fix | `npm run smoke` | 34 checks | All passed |
 | 2026-09-18 | Deployment reachability | `curl` root and webhook | 2 | Both 302, SSO protection on |
+| 2026-09-18 | Deployment after protection off | `curl` 5 paths | 5 | All 200, publicly reachable |
+| 2026-09-18 | Production env vars | `vercel env ls` | 9 vars | All set on Production |
+| 2026-09-18 | Publishable key inlined in the build | Browser bundle scan | 1 | Present, matches local |
+| 2026-09-18 | Production Pollar readiness | `/api/pollar/status` | 2 checks | backend pass, browser blocked on Domains |
+| 2026-09-18 | Corridor end to end, production | API, quote to status | 1 full run | Funded, 186.4814327 USDC |
+| 2026-09-18 | Logo asset in production | Canvas pixel sample | 1 | Renders correctly, white on transparent |
 
 **Total automated checks passing: 34.**
 
