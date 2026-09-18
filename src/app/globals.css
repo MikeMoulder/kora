@@ -99,33 +99,22 @@ body {
 /*
  * The account surface inside the card.
  *
- * The reference does not put the dashboard on flat white. It carries a wash
- * of the same mint, heaviest at the top left and gone by the middle, which is
- * what lets the white cards on top of it read as separate objects. Anything
- * that should read as a card sets its own `bg-paper` against this.
+ * The reference does not put the dashboard on flat white. It carries a wash of
+ * the same mint the canvas uses: heavy at the top left, thinnest through the
+ * middle, picking up again at the bottom right so the far corner is not flat
+ * white. That wash is what lets the white cards on top read as separate
+ * objects rather than outlines drawn on a page.
+ *
+ * It runs corner to corner whatever is open. An earlier version faded out by
+ * the middle so it would not meet the workspace panel, which was solving a
+ * problem that does not exist: the panel is opaque white and sits on top of
+ * this, so nothing underneath it is ever seen. All the fade achieved was a
+ * main area that went flat the moment somebody opened Send.
  *
  * Mint is 168 213 186. Stated in rgba here because these are washes of the
  * token rather than the token itself.
  */
 .surface {
-  background:
-    radial-gradient(52rem 36rem at -4% -8%, rgba(168, 213, 186, 0.55) 0%, transparent 66%),
-    radial-gradient(40rem 30rem at 18% 108%, rgba(168, 213, 186, 0.26) 0%, transparent 60%),
-    linear-gradient(138deg, rgba(168, 213, 186, 0.26) 0%, rgba(168, 213, 186, 0) 58%),
-    var(--color-paper);
-}
-
-/*
- * The same wash, given the whole surface to travel across.
- *
- * `.surface` fades out by the middle because it was drawn for a card with a
- * white workspace panel on the right, and colour running under that panel
- * would fight it. Overview has no panel, so the wash has the full width and
- * dying halfway just looks like it ran out. Corner to corner instead: heavy
- * at the top left, thinnest through the middle, picking up again bottom
- * right so the far corner is not flat white.
- */
-.surface-wide {
   background:
     radial-gradient(64rem 44rem at -6% -10%, rgba(168, 213, 186, 0.58) 0%, transparent 72%),
     radial-gradient(54rem 40rem at 104% 104%, rgba(168, 213, 186, 0.4) 0%, transparent 70%),
