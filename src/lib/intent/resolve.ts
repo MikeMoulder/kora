@@ -7,7 +7,7 @@
  * function, whatever the sentence said.
  */
 
-import { corridors, isExecutable } from '../corridor/registry';
+import { corridors, isExecutable, POLLAR_CORRIDORS } from '../corridor/registry';
 import type { KoraCorridor } from '../corridor/types';
 import type { PaymentIntent } from './types';
 
@@ -27,21 +27,54 @@ export interface Resolution {
   /** Plain-language explanation, safe to show the user verbatim. */
   message: string;
   /** The destination leg, for display. Bolivia is Pollar's to settle. */
-  destination: { country: string; settledBy: 'pollar' | 'unsupported' } | null;
+  destination: {
+    country: string;
+    /**
+     * The country's name, when we have one. Null for a code we do not
+     * recognise, which the caller renders as the code rather than as a guess.
+     */
+    countryName: string | null;
+    settledBy: 'pollar' | 'unsupported';
+  } | null;
 }
 
-/** Countries Pollar can actually land money in, from its ramp registry. */
-const POLLAR_DESTINATIONS = new Set(['BO', 'BR', 'CO', 'MX']);
+/**
+ * Countries Pollar can land money in, and what they are called.
+ *
+ * Derived from `POLLAR_CORRIDORS` rather than listed here. The list used to be
+ * a hand-written `Set(['BO', 'BR', 'CO', 'MX'])` sitting a few files away from
+ * the table it was copied out of, which is two places to update when Pollar
+ * adds a ramp and one of them with nothing to remind you.
+ *
+ * It carries the name as well as the code because the interface needs the
+ * name. The resolver is the last thing in the chain that knows both, so the
+ * alternative is a second country table in the browser.
+ */
+const POLLAR_DESTINATIONS = new Map(
+  POLLAR_CORRIDORS.map((row) => [row.country, row.countryName]),
+);
 
 export function resolveIntent(intent: PaymentIntent): Resolution {
   const destination = intent.destinationCountry
     ? {
         country: intent.destinationCountry,
+        countryName: POLLAR_DESTINATIONS.get(intent.destinationCountry) ?? null,
         settledBy: POLLAR_DESTINATIONS.has(intent.destinationCountry)
           ? ('pollar' as const)
           : ('unsupported' as const),
       }
     : null;
+
+  /**
+   * What to call the destination in a sentence somebody reads.
+   *
+   * An ISO code is the right thing to hold and the wrong thing to print.
+   * "Settling in BO via Pollar" was shipping a field name to the person
+   * paying. Falls back to the code when the country is one Pollar does not
+   * serve, because at that point the sentence is already telling them there is
+   * no ramp and inventing a name for it adds nothing.
+   */
+  const where = destination?.countryName ?? intent.destinationCountry;
 
   if (intent.amount === null || !intent.currency) {
     return {
@@ -127,7 +160,7 @@ export function resolveIntent(intent: PaymentIntent): Resolution {
     destination,
     message:
       destination?.settledBy === 'pollar'
-        ? `Funding through ${selected.countryName} ${selected.railLabel}, settling in ${intent.destinationCountry} via Pollar.`
-        : `Funding through ${selected.countryName} ${selected.railLabel}. Pollar has no ramp into ${intent.destinationCountry}, so the recipient would need to hold USDC.`,
+        ? `Funding through ${selected.countryName} ${selected.railLabel}, settling in ${where} via Pollar.`
+        : `Funding through ${selected.countryName} ${selected.railLabel}. Pollar has no ramp into ${where}, so the recipient would need to hold USDC.`,
   };
 }
