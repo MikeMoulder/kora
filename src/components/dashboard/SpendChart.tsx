@@ -58,11 +58,11 @@ export function SpendChart() {
           className="pointer-events-none absolute -top-1 z-10 -translate-x-1/2 -translate-y-full"
           style={{ left: `${calloutPercent}%` }}
         >
-          <div className="rounded-lg bg-ink px-3 py-2 text-paper">
+          <div className="rounded-lg border-[1.5px] border-ink bg-accent px-3 py-2 text-ink">
             <div className="tabular text-[15px] font-semibold leading-none">
               &#8358;{selectedValue.toLocaleString()}
             </div>
-            <div className="mt-1 text-[10px] uppercase tracking-[0.1em] text-paper/55">
+            <div className="mt-1 text-[10px] uppercase tracking-[0.1em] text-ink/55">
               Week {selected + 1}
             </div>
           </div>
@@ -94,7 +94,7 @@ export function SpendChart() {
                       cx={column * GAP_X + GAP_X / 2}
                       cy={row * GAP_Y + GAP_Y / 2}
                       r={DOT / 2}
-                      className={isSelected ? 'fill-ink' : 'fill-ink-faint'}
+                      className={isSelected ? 'fill-accent-deep' : 'fill-ink-faint'}
                     />
                   );
                 })}

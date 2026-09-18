@@ -35,8 +35,8 @@ export function Dashboard() {
   const rates = useRates();
 
   return (
-    <div className="min-h-screen bg-paper-edge p-0 lg:p-6">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1400px] overflow-hidden border-rule bg-paper lg:min-h-0 lg:rounded-3xl lg:border lg:shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_40px_-12px_rgba(0,0,0,0.10)]">
+    <div className="canvas min-h-screen p-0 lg:p-6 xl:p-9 2xl:p-14">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1320px] overflow-hidden border-rule bg-paper lg:min-h-0 lg:rounded-[28px] lg:border lg:shadow-[0_2px_4px_rgba(15,17,16,0.04),0_24px_60px_-20px_rgba(15,17,16,0.18)]">
         <div className="hidden lg:flex">
           <Sidebar mode={mode} onSelect={setMode} />
         </div>
@@ -47,12 +47,14 @@ export function Dashboard() {
           <div className="flex min-w-0 flex-1 flex-col xl:flex-row">
             <main className="min-w-0 flex-1 space-y-4 px-5 pb-8 sm:px-7">
               <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                <div className="space-y-4">
+                <div className="min-w-0 space-y-4">
                   <BalanceCard rates={rates} />
                   <CurrencyStrip rates={rates} />
                 </div>
 
-                <Transactions />
+                <div className="min-w-0">
+                  <Transactions />
+                </div>
               </div>
 
               <SpendChart />
@@ -113,14 +115,14 @@ function BalanceCard({ rates }: { rates: RatesPayload | null }) {
   const [hidden, setHidden] = useState(false);
 
   return (
-    <div className="rounded-2xl bg-ink p-5 text-paper">
+    <div className="min-w-0 rounded-2xl bg-accent p-5 text-ink">
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2">
             <Flag code="NG" size={15} />
             <span className="text-[13px] font-semibold tracking-[0.02em]">NGN</span>
           </div>
-          <div className="mt-1 text-[11px] text-paper/50">
+          <div className="mt-1 text-[11px] text-ink/55">
             {rates
               ? `1 USD = ₦${rates.basePerUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
               : 'Loading rate'}
@@ -131,7 +133,7 @@ function BalanceCard({ rates }: { rates: RatesPayload | null }) {
           type="button"
           onClick={() => setHidden((v) => !v)}
           aria-label={hidden ? 'Show balance' : 'Hide balance'}
-          className="rounded-md p-1.5 text-paper/50 transition-colors hover:bg-paper/10 hover:text-paper"
+          className="shrink-0 rounded-md p-1.5 text-ink/50 transition-colors hover:bg-ink/10 hover:text-ink"
         >
           {hidden ? (
             <Eye className="h-4 w-4" strokeWidth={1.8} />
@@ -141,14 +143,14 @@ function BalanceCard({ rates }: { rates: RatesPayload | null }) {
         </button>
       </div>
 
-      <div className="tabular mt-5 text-[38px] font-semibold leading-none tracking-[-0.035em]">
+      <div className="tabular mt-5 truncate text-[30px] font-semibold leading-none tracking-[-0.035em] sm:text-[36px]">
         {hidden ? '••••••••' : formatNaira(ACCOUNT.balance)}
       </div>
-      <div className="tabular mt-2 text-sm text-paper/60">
+      <div className="tabular mt-2 truncate text-sm text-ink/60">
         {hidden ? '•••••' : `${formatNaira(ACCOUNT.delta, { signed: true })} this month`}
       </div>
 
-      <div className="mt-5 grid grid-cols-3 gap-1 border-t border-paper/15 pt-4">
+      <div className="mt-5 grid grid-cols-3 gap-1 border-t border-ink/15 pt-4">
         <Action icon={<ArrowUpRight className="h-4 w-4" strokeWidth={1.8} />} label="Pay" />
         <Action icon={<Repeat className="h-4 w-4" strokeWidth={1.8} />} label="Convert" />
         <Action icon={<ArrowDownLeft className="h-4 w-4" strokeWidth={1.8} />} label="Receive" />
@@ -161,9 +163,9 @@ function Action({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
     <button
       type="button"
-      className="flex flex-col items-center gap-1.5 rounded-lg py-1.5 text-paper/70 transition-colors hover:bg-paper/10 hover:text-paper"
+      className="flex flex-col items-center gap-1.5 rounded-lg py-1.5 text-ink/75 transition-colors hover:bg-ink/10 hover:text-ink"
     >
-      <span className="flex h-8 w-8 items-center justify-center rounded-full border border-paper/25">
+      <span className="flex h-8 w-8 items-center justify-center rounded-full border border-ink/25 bg-paper/40">
         {icon}
       </span>
       <span className="text-[11px] font-medium">{label}</span>
@@ -266,7 +268,12 @@ function TransactionRow({ tx }: { tx: DemoTransaction }) {
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <span className={cn('tabular text-[13px] font-semibold', outgoing && 'text-ink-muted')}>
+        <span
+          className={cn(
+            'tabular text-[13px] font-semibold',
+            outgoing ? 'text-loss' : 'text-gain',
+          )}
+        >
           {formatNaira(tx.amount, { signed: true })}
         </span>
         <DirectionMark direction={tx.direction} />

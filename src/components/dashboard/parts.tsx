@@ -110,7 +110,7 @@ export function DirectionMark({ direction }: { direction: 'in' | 'out' }) {
       aria-hidden
       className={cn(
         'inline-flex h-5 w-5 items-center justify-center rounded-full',
-        incoming ? 'border border-ink bg-paper text-ink' : 'bg-ink text-paper',
+        incoming ? 'border border-gain bg-paper text-gain' : 'bg-loss text-paper',
       )}
     >
       <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none">
