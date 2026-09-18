@@ -20,12 +20,23 @@
  * money. That is a real settlement of a real charge, not a timer we wrote.
  *
  * Server only. The secret key grants full account access and must never reach
- * the browser, which is why nothing here is prefixed `NEXT_PUBLIC_`.
+ * the browser, which is why nothing here is prefixed `NEXT_PUBLIC_` and why
+ * the module refuses to load in one.
+ *
+ * The guard is a runtime check rather than the `server-only` package the Next
+ * docs recommend. This module is reachable from the corridor adapters, and the
+ * smoke suite loads those under plain Node through tsx, where `server-only`
+ * throws by design. A window check holds the same line in the browser, which
+ * is the environment the rule is actually about.
  *
  * API: v3, Bearer auth, per developer.flutterwave.com as of 2026-09-18.
  */
 
-import 'server-only';
+if (typeof window !== 'undefined') {
+  throw new Error(
+    'src/lib/flutterwave/client is server only. Importing it into a client component would ship a secret key.',
+  );
+}
 
 const BASE_URL = process.env.FLW_BASE_URL ?? 'https://api.flutterwave.com/v3';
 
@@ -241,6 +252,36 @@ interface TransactionShape {
 export function verifyTransaction(id: number | string) {
   return call<VerifiedTransaction>(
     `/transactions/${encodeURIComponent(String(id))}/verify`,
+    { method: 'GET' },
+    (body) => {
+      const tx = body.data as TransactionShape | undefined;
+
+      if (!tx?.status || !tx.tx_ref) return null;
+
+      return {
+        id: tx.id ?? 0,
+        txRef: tx.tx_ref,
+        flwRef: tx.flw_ref ?? '',
+        status: tx.status,
+        amount: tx.amount ?? 0,
+        currency: tx.currency ?? 'NGN',
+        chargedAmount: tx.charged_amount ?? tx.amount ?? 0,
+      };
+    },
+  );
+}
+
+/**
+ * Confirm by our own reference rather than Flutterwave's transaction id.
+ *
+ * The webhook is the intended trigger and it needs a public URL, which
+ * localhost does not have. Polling by `tx_ref` keeps the corridor completable
+ * on a developer machine, using the same verification the webhook path ends
+ * at, so neither route credits a payment the issuer has not confirmed.
+ */
+export function verifyByReference(txRef: string) {
+  return call<VerifiedTransaction>(
+    `/transactions/verify_by_reference?tx_ref=${encodeURIComponent(txRef)}`,
     { method: 'GET' },
     (body) => {
       const tx = body.data as TransactionShape | undefined;

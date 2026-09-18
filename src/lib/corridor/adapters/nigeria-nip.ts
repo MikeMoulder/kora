@@ -22,15 +22,22 @@
 import type { KoraCorridor, KoraFundingRequest, KoraFundingState, KoraRailAdapter, KoraQuote } from '../types';
 import { store } from '../store';
 import { buildQuote, commonFields, field, instructions, makeReference } from './shared';
+import {
+  createBankTransferCharge,
+  isFlutterwaveConfigured,
+  isTestMode,
+  verifyByReference,
+} from '@/lib/flutterwave/client';
 
 const ADAPTER_ID = 'ng-nip';
 
 /**
- * The collections account a user pays into.
+ * The fallback collections account.
  *
- * In production this is a per-payment virtual account issued by the
- * collections partner, which is what makes reference-matching reliable. In
- * sandbox it is a fixed demo account and the reference does the matching.
+ * Reached only when Flutterwave is not configured. It is a fixed number, so
+ * the reference has to do the matching and a human has to read it off a
+ * statement. With Flutterwave configured the corridor gets a fresh virtual
+ * account per payment and this is never used.
  */
 const COLLECTION_ACCOUNT = {
   bankName: 'Sterling Bank (KORA sandbox collections)',
@@ -57,8 +64,9 @@ const corridors: KoraCorridor[] = [
     adapterId: ADAPTER_ID,
     limits: { min: 1_000, max: 5_000_000 },
     estimatedTime: '1–5 minutes',
-    readinessNote:
-      'Settlement is simulated. Going live needs a licensed Nigerian collections partner issuing virtual accounts — a commercial agreement, not more code.',
+    readinessNote: isFlutterwaveConfigured()
+      ? 'Collections run on Flutterwave, which issues a real virtual account per payment and confirms receipt by webhook. Going live is KYC approval on the Flutterwave account, not more code.'
+      : 'Settlement is simulated. Add a Flutterwave secret key and this corridor issues real virtual accounts instead of a fixed demo one.',
   },
 ];
 
@@ -86,6 +94,59 @@ export const nigeriaNipAdapter: KoraRailAdapter = {
     const reference = makeReference();
     const now = new Date().toISOString();
 
+    // Ask the partner for an account first, because everything below is
+    // shaped by whether that worked. A failed charge falls back rather than
+    // failing the payment: a fixed account somebody reconciles by hand is
+    // worse than a virtual one and much better than a dead end.
+    let account = {
+      bankName: COLLECTION_ACCOUNT.bankName,
+      accountNumber: COLLECTION_ACCOUNT.accountNumber,
+      accountName: COLLECTION_ACCOUNT.accountName as string | null,
+      payAmount: `${quote.amount.toLocaleString()} ${quote.currency}`,
+      expiresAt: quote.expiresAt,
+    };
+
+    let settlement: KoraFundingRequest['settlement'] = {
+      provider: 'simulated',
+      mode: 'simulated',
+    };
+
+    let opening = `Collections account issued. Transfer ${quote.amount.toLocaleString()} ${quote.currency} quoting ${reference}.`;
+
+    if (isFlutterwaveConfigured()) {
+      const charge = await createBankTransferCharge({
+        txRef: reference,
+        amount: quote.amount,
+        // Unique per charge and on a reserved test domain, so nothing here
+        // stands in for a real mailbox.
+        email: `${reference.toLowerCase()}@kora.test`,
+        narration: `KORA corridor ${reference}`,
+      });
+
+      if (charge.ok) {
+        account = {
+          bankName: charge.data.bankName,
+          accountNumber: charge.data.accountNumber,
+          accountName: null,
+          // Flutterwave adds its fee on top, so the figure a person types
+          // into their bank app is its number and not ours. Printing the
+          // quote here produces a transfer that never reconciles.
+          payAmount: `${Number(charge.data.transferAmount).toLocaleString()} ${quote.currency}`,
+          expiresAt: charge.data.expiresAt ?? quote.expiresAt,
+        };
+
+        settlement = {
+          provider: 'flutterwave',
+          mode: isTestMode() ? 'test' : 'live',
+          partnerReference: charge.data.transferReference,
+        };
+
+        opening = `Flutterwave issued virtual account ${charge.data.accountNumber} at ${charge.data.bankName}, expiring ${account.expiresAt}.`;
+      } else {
+        opening = `Flutterwave could not issue an account (${charge.code}: ${charge.message}). Fell back to the fixed sandbox account, which a human has to reconcile.`;
+      }
+    }
+
     const request: KoraFundingRequest = {
       reference,
       corridorId: corridor.id,
@@ -94,27 +155,29 @@ export const nigeriaNipAdapter: KoraRailAdapter = {
       amount: quote.amount,
       currency: quote.currency,
       receiveUsdc: quote.receiveUsdc,
-      requiresOperatorConfirmation: true,
+      // A partner that confirms by webhook removes the human step. Without
+      // one, somebody still has to read a bank statement.
+      requiresOperatorConfirmation: settlement.provider !== 'flutterwave',
       createdAt: now,
-      expiresAt: quote.expiresAt,
+      expiresAt: account.expiresAt,
+      settlement,
       instructions: instructions([
-        field('bank_name', 'Bank', COLLECTION_ACCOUNT.bankName),
-        field('bank_account', 'Account number', COLLECTION_ACCOUNT.accountNumber, 'code'),
-        field('account_holder', 'Account name', COLLECTION_ACCOUNT.accountName),
-        ...commonFields(quote, corridor, reference, quote.expiresAt),
+        field('bank_name', 'Bank', account.bankName),
+        field('bank_account', 'Account number', account.accountNumber, 'code'),
+        ...(account.accountName
+          ? [field('account_holder', 'Account name', account.accountName)]
+          : []),
+        field('amount', 'Exact amount', account.payAmount, 'amount'),
+        ...commonFields(quote, corridor, reference, account.expiresAt).filter(
+          (f) => f.key !== 'amount',
+        ),
       ]),
     };
 
     const state: KoraFundingState = {
       reference,
       status: 'awaiting_payment',
-      events: [
-        {
-          at: now,
-          status: 'awaiting_payment',
-          detail: `Collections account issued. Transfer ${quote.amount.toLocaleString()} ${quote.currency} quoting ${reference}.`,
-        },
-      ],
+      events: [{ at: now, status: 'awaiting_payment', detail: opening }],
     };
 
     await store.put({ request, state });
@@ -125,9 +188,38 @@ export const nigeriaNipAdapter: KoraRailAdapter = {
     const record = await store.get(reference);
     if (!record) throw new Error(`Unknown funding reference ${reference}`);
 
-    // Sandbox settlement: once the user reports payment, advance on a timer.
-    // A production adapter replaces this with the collections partner's
-    // webhook; the states it moves through are the same either way.
+    /*
+     * Flutterwave settles on its own and tells us by webhook. A webhook needs
+     * a public URL, which localhost does not have, so the corridor also asks
+     * Flutterwave directly whenever the status is read. Both routes end at
+     * the same verification call, so neither one credits a payment the issuer
+     * has not confirmed.
+     */
+    if (
+      record.request.settlement?.provider === 'flutterwave' &&
+      record.state.status !== 'funded'
+    ) {
+      const verified = await verifyByReference(reference);
+
+      if (verified.ok && verified.data.status === 'successful') {
+        const funded = await store.append(
+          reference,
+          'funded',
+          `Flutterwave confirmed ${verified.data.chargedAmount.toLocaleString()} ${verified.data.currency} against ${reference}, ref ${verified.data.flwRef}.`,
+        );
+
+        if (funded) {
+          funded.state.fundedAmountUsdc = record.request.receiveUsdc;
+          return funded.state;
+        }
+      }
+
+      return record.state;
+    }
+
+    // No partner behind the rail: once the user reports payment, advance on a
+    // timer. The states are the same either way; only who says the money
+    // arrived changes.
     if (record.state.status === 'payment_reported') {
       const reportedAt = [...record.state.events]
         .reverse()

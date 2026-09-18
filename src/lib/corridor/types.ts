@@ -140,6 +140,20 @@ export interface KoraFundingRequest {
    * programmatic webhook. Surfaced in the UI verbatim — never hidden.
    */
   requiresOperatorConfirmation: boolean;
+  /**
+   * Who is actually collecting the money.
+   *
+   * Absent when the rail has no partner behind it. Present, and named, when
+   * one is issuing the account, because "a real partner issued this account"
+   * and "we printed an account" are different claims and the interface should
+   * never blur them.
+   */
+  settlement?: {
+    provider: 'flutterwave' | 'simulated';
+    mode: 'test' | 'live' | 'simulated';
+    /** The partner's own handle for this collection, for reconciliation. */
+    partnerReference?: string;
+  };
 }
 
 export interface KoraFundingState {
