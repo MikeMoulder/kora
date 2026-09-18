@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 89
+**Commits:** 97
 
 ---
 
@@ -30,6 +30,14 @@ never run, so there is still no Stellar transaction hash to show a judge. That h
 single most valuable artefact left to produce.
 
 Walk it at `/send?intent=Send ₦250,000 to Carlos Mamani in Bolivia for the brand system.`
+
+**Provision Upstash Redis.** Vercel dashboard, project `kora`, Storage, Upstash Redis,
+create, connect to the project. It injects `KV_REST_API_URL` and `KV_REST_API_TOKEN`
+automatically, then redeploy. The adapter is written and both stores pick it up on their
+own; until then everything runs in process memory, which does not survive a restart and is
+not shared between serverless instances. The balance is the part that suffers: a funding
+reference the server forgets can be re-seeded by the client, a forgotten balance is just
+gone.
 
 Also still open, not blocking:
 
@@ -209,6 +217,13 @@ Still outstanding, and both small:
 | 2026-09-18 | Browser SDK call from the deployed page | In-page fetch | 1 | 200 `SDK_APPLICATION_CONFIG` |
 | 2026-09-18 | Readiness probe after the CORS assertion | `/api/pollar/status` | 2 checks | Still pass, now on evidence |
 | 2026-09-18 | Smoke after the probe fix | `npm run smoke` | 34 checks | All passed |
+| 2026-09-18 | Static virtual account, live keys | `curl` v3 virtual-account-numbers | 2 | Docs BVN rejected at 10 digits, 11 works |
+| 2026-09-18 | Personal deposit account route | `/api/account/receiving` | 2 calls | Created once, cached, same number |
+| 2026-09-18 | Deposit to credit, API | open, poll, balance | 1 full run | 75,000 credited once, balance moved |
+| 2026-09-18 | Deposit idempotency | Repeat confirm polls | 2 | Reported already credited, no double credit |
+| 2026-09-18 | Deposit to credit, browser | Receive, Add money | 1 full run | 120,000 credited, card moved to 5,015,650 |
+| 2026-09-18 | Smoke after the ledger | `npm run smoke` | 34 checks | All passed |
+| 2026-09-18 | Smoke after the Redis adapter | `npm run smoke` | 34 checks | All passed, memory fallback intact |
 
 **Total automated checks passing: 34.**
 
@@ -384,6 +399,28 @@ The webhook follows three rules in order: authenticate, never trust the body, ch
 money. The middle one is the one worth keeping. A correctly signed `charge.completed` on a
 real funding reference was probed against a server that could not reach Flutterwave, and
 it did not credit: the reference stayed at `awaiting_payment` with no USDC released.
+
+### Phase P, the account is real money now
+
+The balance was a constant, so nothing that happened could show up in it. It is an opening
+figure plus an append-only ledger, returned separately so the interface says which part is
+sample data and which part happened. Entries are keyed on the partner reference, which
+doubles as the idempotency key, because Flutterwave retries a webhook three times over
+ninety minutes and a retry must not credit twice.
+
+Receive shows a permanent NUBAN that Flutterwave issued for the account holder. That needed
+a BVN, since a permanent Nigerian account number is tied to a verified identity by
+regulation; test mode sends the documented placeholder and the panel says the identity is
+not real. Live keys with no BVN are refused rather than sent a made up one.
+
+**There is no faucet, and that shaped the design.** Nothing in Flutterwave's sandbox ever
+pays into a static account, so the permanent number sits there and no webhook ever fires.
+A bank transfer charge is different: it names an amount and test mode pays it itself within
+seconds. So Add money opens a charge, and the balance moves because money genuinely
+arrived against a reference Flutterwave confirms. In production both paths end in the same
+place, a `charge.completed` verified and credited once.
+
+Storage is Upstash Redis behind the same interfaces, memory when it is not configured.
 
 ### Other
 
