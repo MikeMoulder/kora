@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 68
+**Commits:** 72
 
 ---
 
@@ -18,13 +18,15 @@ renders unstyled. Everything else has been converted.
 
 After that, Phase J, deploy, since judges need a link.
 
-Two smaller things are still open on the dashboard, neither blocking:
+Two smaller things are still open, neither blocking:
 
-- Convert and Receive on the balance card are inert. Pay now opens the send panel, so
-  the other two are the only buttons on the screen that do nothing.
 - The production build has not been run since the overview cleanup. A dev server from
   another session holds `.next`, and `next build` would take it out from under that
   session. Run it before deploy.
+- Two older copy buttons, in `src/components/ui.tsx` and `src/components/ui/primitives.tsx`,
+  still call `navigator.clipboard` directly with no fallback and no feedback. They have the
+  bug the receive panel was fixed for. `copyText` in `src/lib/utils.ts` is the replacement.
+  Left alone because `primitives.tsx` is uncommitted work in progress.
 
 ---
 
@@ -114,6 +116,16 @@ provider logs a 403 in the console.
 | 2026-09-18 | Overview layout, 375px | Browser measurement | Overflow | None |
 | 2026-09-18 | Panel open and close, 1440px | Browser | Rail to panel to close | Opens, reflows, closes back to overview |
 | 2026-09-18 | Panel open, 375px | Browser DOM probe | Panel mounts below main | Present, no overflow |
+| 2026-09-18 | Typecheck during balance card wiring | `npx tsc --noEmit` | Whole project | Clean, run 3 times |
+| 2026-09-18 | Smoke after balance card wiring | `npm run smoke` | 34 checks | All passed, no regression |
+| 2026-09-18 | Clipboard, async API | Browser probe | Write permission | Denied in the preview, fallback took over |
+| 2026-09-18 | Clipboard, both paths sabotaged | Browser probe | Refusal message | Shown, no false tick |
+| 2026-09-18 | Convert maths, GHS | Browser | 250,000 NGN at 0.0086 | GH2,150, matches the feed |
+| 2026-09-18 | Convert maths, USDC | Browser | 100,000 NGN at 1,330.27/USD | 75.17, matches the peg |
+| 2026-09-18 | Convert to Send handover | Browser | Amount carried | 250,000 seeded into the send panel |
+| 2026-09-18 | Draft clearing | Browser | Rail open after a handover | Back to the 100,000 default, no stale amount |
+| 2026-09-18 | Convert panel, 375px | Browser measurement | Overflow, chip clipping | None |
+| 2026-09-18 | Receive panel, 375px | Browser measurement | Overflow, value clipping | None |
 
 **Total automated checks passing: 34.**
 
@@ -127,6 +139,11 @@ provider logs a 403 in the console.
 - The console audit caught a `next/image` aspect ratio warning. Tailwind's `w-auto` class
   was not enough, because Next inspects the inline style. Setting `style={{ width: 'auto' }}`
   cleared it.
+- The copy button looked finished and did nothing. The embedded preview refuses
+  `navigator.clipboard.writeText` outright, and the first version caught that and stayed
+  silent, so the control was dead with no way to tell. It now falls back and, when both
+  paths fail, says so. Verified by sabotaging both paths in the page and watching the
+  refusal render.
 - The 375px scroll check looked like a paint bug in the new gradient: scrolled captures
   came back blank. Reproducing it on `/corridors`, a page the change never touched, showed
   it was the browser pane's mobile capture rather than the CSS. Worth recording, because
@@ -231,6 +248,29 @@ Restyled against the supplied reference at the same time:
 - Removed the subtitle, which described a Latin America use case the corridor registry does
   not serve, and the sample data note, which restated in small grey type what the corridor
   pages already say plainly.
+
+### Phase N, balance card actions
+
+Pay, Convert and Receive all work now. Convert and Receive open panels of their own,
+reached from the money they act on rather than from a rail that would then need eight
+icons.
+
+**Convert** is a rate, not a wallet. It reads the same live feed the quote engine reads and
+quotes the naira against the four African cross rates, the three payout currencies and
+USDC. USDC leads the list because it is the asset the corridor settles in, which makes it
+the one conversion KORA performs rather than merely quotes. The panel cannot move money and
+says so, and the figure is mid-market: a real payment adds the rail fee and the spread, and
+only the quote at Review knows them. Its button hands the amount to the send panel rather
+than opening a second path to the corridor, and that draft survives exactly the hop that
+created it.
+
+**Receive** carries the three fields a Nigerian inbound transfer actually needs, bank, NUBAN
+and account name, each with its own copy control. No QR: Nigeria has no scannable standard
+behind NIP the way Kenya has USSD behind M-Pesa, so a code there would picture a payment
+method that does not exist.
+
+Copying goes through `copyText` in `src/lib/utils.ts`, which falls back to `execCommand`
+when the async clipboard is refused and reports whether the text landed.
 
 ### Other
 
