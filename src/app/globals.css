@@ -162,6 +162,23 @@ body {
     0 16px 34px -20px rgba(15, 17, 16, 0.3);
 }
 
+/*
+ * The app itself, lifted off the mint.
+ *
+ * A third step above the other two, and the only thing that ever uses it.
+ * Applied from `lg` up, because below that the app fills the window and has
+ * no edge to cast anything.
+ */
+@media (min-width: 64rem) {
+  .card-app {
+    border: 1px solid var(--color-rule);
+    border-radius: 28px;
+    box-shadow:
+      0 2px 4px rgba(15, 17, 16, 0.04),
+      0 24px 60px -20px rgba(15, 17, 16, 0.22);
+  }
+}
+
 /* ── Ownership language ──────────────────────────────────────────────────
  * Three classes carrying the rule above, so no component restates a border
  * and the language cannot drift from screen to screen.

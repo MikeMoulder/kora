@@ -927,7 +927,7 @@ export function BeneficiaryPanel({ onCompose }: { onCompose?: (draft: SendDraft)
         {filtered.map((b) => (
           <div
             key={b.id}
-            className="group rounded-xl border border-rule p-3 transition-colors hover:border-ink"
+            className="card-row group rounded-[14px] bg-paper p-3"
           >
             <div className="flex items-center gap-3">
               <Avatar id={b.avatarId} name={b.name} size={38} />
@@ -998,7 +998,7 @@ function BeneficiaryPicker({
             key={b.id}
             type="button"
             onClick={() => onPick(b)}
-            className="flex w-full items-center gap-3 rounded-xl border border-rule p-3 text-left transition-colors hover:border-ink"
+            className="card-row flex w-full items-center gap-3 rounded-[14px] bg-paper p-3 text-left"
           >
             <Avatar id={b.avatarId} name={b.name} size={36} />
             <div className="min-w-0">

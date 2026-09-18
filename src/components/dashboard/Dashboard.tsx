@@ -82,7 +82,7 @@ export function Dashboard() {
      * collapse instead, so a tall card simply starts at the top.
      */
     <div className="canvas flex min-h-screen justify-center p-0 lg:p-6 xl:p-9 2xl:p-14">
-      <div className="surface my-auto flex min-h-screen w-full max-w-[1240px] overflow-hidden border-rule lg:min-h-0 lg:rounded-[28px] lg:border lg:shadow-[0_2px_4px_rgba(15,17,16,0.04),0_24px_60px_-20px_rgba(15,17,16,0.18)]">
+      <div className="surface card-app my-auto flex min-h-screen w-full max-w-[1240px] overflow-hidden lg:min-h-0">
         <div className="hidden lg:flex">
           <Sidebar panel={panel} onSelect={open} />
         </div>
@@ -265,8 +265,14 @@ function BalanceCard({
   const [hidden, setHidden] = useState(false);
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-[24px] border border-rule bg-paper p-1.5 shadow-[0_1px_2px_rgba(15,17,16,0.04)]">
-      <div className="relative rounded-[18px] bg-accent px-5 pb-6 pt-5 text-center text-ink">
+    <div className="card-block min-w-0 overflow-hidden rounded-[22px] bg-paper p-1.5">
+      {/*
+        * Concentric with the card around it: 22px outer radius less the 6px of
+        * padding is 16px inner. Anything else leaves the gap between the two
+        * curves widening through the corner, which is the thing that makes a
+        * card-inside-a-card look glued together rather than nested.
+        */}
+      <div className="relative rounded-[16px] bg-accent px-5 pb-6 pt-5 text-center text-ink">
         <button
           type="button"
           onClick={() => setHidden((v) => !v)}
