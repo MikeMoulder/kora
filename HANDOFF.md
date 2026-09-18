@@ -4,38 +4,65 @@ Living progress tracker. Updated at the end of every task.
 
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
-**Current phase:** U, the front door
-**Commits:** 152
+**Current phase:** V, Kora Agent
+**Commits:** 158
 
 ---
 
 ## Next task
 
-**Deploy.** This is the only thing standing between the work and a judge. Production is
-behind the local build by the /send retirement, the payments work, the interface revamp,
-the portraits, the icon set and this round's sign in gate. Everything else on this list is
-smaller than it.
+**The agentic workflow, in two halves.** The parser has produced `timing` and
+`scheduledFor` since the first version and nothing has ever consumed them. That is the
+whole of what is missing between what KORA is and what the pitch says it is.
 
-Two things to check the moment it is up, because both are new and neither is exercised by
-the build:
+1. **Scheduled payments.** A payment the agent reads as "pay Carlos on Friday" has to be
+   held rather than sent, listed somewhere the account holder can see and cancel it, and
+   then executed. Roadmap M2.
+2. **Earn while it waits.** Money held for a scheduled payment is idle, and Pollar ships
+   a real Earn API to put it to work. This is the half that turns a remittance demo into
+   an argument about what a payments agent is for.
 
-- `/dashboard` with no cookie has to answer a redirect to `/` on the deployed host, not
-  just on localhost. The proxy runs at the edge on Vercel rather than inside the Node
-  server, which is a different execution path to the one tested here.
+**Pollar Earn is real and typed, confirmed by reading the SDK rather than the docs.**
+`@pollar/core@0.11.3` declares four endpoints:
+
+```
+GET  /earn/providers                        ("blend" | "defindex")[], empty means disabled
+GET  /earn/opportunities?provider=          id, name, kind vault|lending, asset, apy
+GET  /earn/position?provider=&opportunity=  balance, apy, withdrawUnit
+POST /earn/build                            unsigned Soroban XDR, deposit or withdraw
+```
+
+with `getEarnProviders`, `getEarnOpportunities`, `getEarnPosition`, `earnDeposit` and
+`earnWithdraw` on the client. The SDK's own note says a provider only appears when it is
+configured, Blend needing a pool address and DeFindex an API key, and that an empty list
+means Earn is off and no Earn UI should be drawn.
+
+**Probe before building.** These are SDK endpoints on `sdk.api.pollar.xyz`, which is origin
+checked, and this app's Domains list is empty. The first thing to find out is whether
+`/earn/providers` answers at all and with what, because an empty array is a legitimate
+answer that means the Earn UI must not exist. Building a yield panel that cannot be
+reached would be inventing the one detail idea.md says explicitly not to invent.
+
+**Still true and still waiting:**
+
+**Deploy.** Nothing is pushed to a remote and nothing is deployed, so the history exists
+only on this machine and a judge has no link. Two things to check the moment it is up,
+because neither is exercised by the build:
+
+- `/dashboard` with no cookie has to answer a redirect to `/` on the deployed host. The
+  proxy runs at the edge on Vercel rather than inside the Node server, which is a
+  different execution path to the one tested here.
 - `/signin` has to answer 307 to `/`. It is configured in `next.config.ts` rather than in
   code, so a stale build would drop it silently.
 
-Also add the deployed URL to Pollar under Build to Domains. Domains has no wildcards, so
-the preview URL and the production URL are two separate entries, and an SDK call from a
-host that is not listed returns 403 `ORIGIN_NOT_ALLOWED` rather than anything that reads
-like a configuration problem.
+Add the deployed URL to Pollar under Build to Domains. Domains has no wildcards, so the
+preview URL and the production URL are two separate entries, and an SDK call from a host
+that is not listed returns 403 `ORIGIN_NOT_ALLOWED` rather than anything that reads like a
+configuration problem. This blocks Earn as well as the hand-off.
 
-**Then: the submission write-up.** The README now covers the front door and the run
-instructions. `SUBMISSION.md` has not been re-read since the dashboard, the payments work
-and the gate landed.
-
-The strongest artefact is still the Stellar transaction, and it should be the first thing a
-judge sees:
+**The submission write-up.** `SUBMISSION.md` has not been re-read since the dashboard, the
+payments work and the gate landed. The strongest artefact is still the Stellar transaction
+and it should be the first thing a judge sees:
 
 ```
 tx      2c44ae641c27913d7e7fdb19ecdcf8ac6273e6ca1ba67dbe830b1eb767530508
@@ -49,15 +76,14 @@ to      GAXMTAOXFC4CZFM3BDA52FC3Q7NHN47XJFXZV7YDQ7TCZJIPQVT63FDA   Carlos Mamani
 recipient wallet 0 to 14.8804771, balance 4,915,650 to 4,895,650. All three confirmed on
 Horizon.
 
-**Done since this list was last written:** the seven portraits are in `public/avatars/` and
-drawing, and sign in is now the front door rather than an orphaned route.
-
 **Smaller, and honest about being smaller:**
 
 - The README `## Layout` block is stale. It lists `src/app/corridors/`, `RouteRail` and
-  `Passport`, none of which exist any more. Not touched in this round because rewriting a
-  README section is a different job from documenting a route change, and doing it quietly
-  inside an unrelated commit is how a document stops being trusted.
+  `Passport`, none of which exist any more.
+- The transaction list draws the same counterparty four times in a row on some days. The
+  opening history walks the beneficiary list forward within a day so two payouts on one
+  date are never the same person, but nothing stops a run across consecutive days. Noticed
+  while testing the agent panel, not chased.
 - Housekeeping, unactioned on purpose: `AGENTS.md` asks for every `.md` except the README
   and its dependencies to be gitignored. Ten are tracked today, including `SUBMISSION.md`
   and this file. Untracking them is not something to do quietly the day of a deadline, so
@@ -356,6 +382,15 @@ payment.
   reach for the same wrong conclusion.
 
 ---
+
+| 2026-09-18 | Typecheck during the agent polish | `npm run typecheck` | Whole project | Clean, run 3 times |
+| 2026-09-18 | Smoke regression after the agent polish | `npm run smoke` | 34 checks | All passed |
+| 2026-09-18 | Agent portrait crop candidates | Rendered at 32px, nearest-neighbour magnified | 9 crops across 2 sweeps | 540 square from (240, 110) picked |
+| 2026-09-18 | Agent portrait encoding | Palette against truecolour at 180px and 56px | 2 encodings | Indistinguishable, 491 KB to 123 KB |
+| 2026-09-18 | Agent panel, resting state | Browser, 420px | Layout, overflow | Clean, column now fills its height |
+| 2026-09-18 | Agent panel, parsed state | Browser, 2 sentences to parsed intent | 2 full runs | Gemini answered both, corridor resolved |
+| 2026-09-18 | Destination name, before the fix | Browser, Understood as table | 1 | Failed, printed the ISO code BO |
+| 2026-09-18 | Destination name, after the fix | Browser, table and corridor note | 2 | Both read Bolivia |
 
 ## Done so far
 
@@ -1006,12 +1041,97 @@ over 32px blocks and a Gaussian of radius 32 do not have the same peaks.
 
 ---
 
+### Phase V, Kora Agent got a face and a resting state
+
+Requested: polish the Kora Agent panel, using the supplied artwork as its logo.
+
+**The sparkle was the problem, not the styling.** The panel identified itself with a
+lucide sparkle in a black rounded square. That glyph is the house mark for "a model is
+behind this" across the whole category, so it identified the feature and not this feature.
+The supplied artwork is a portrait, and the app already draws every counterparty as a
+portrait. Putting the agent in that slot says it is another party to the transaction,
+which is the claim the panel then spends the rest of its height qualifying.
+
+**The crop was measured, not chosen.** Nine candidate squares were rendered at 32 pixels,
+the size the panel header draws, then magnified with nearest neighbour so the pixels could
+be counted. Anything wider than about 580 loses the face entirely: the head becomes one
+element in a composition and the tile reads as an abstract pattern. Anything tighter than
+about 460 keeps the face and throws away the floral crown, which is the memorable half.
+540 square from (240, 110) is the smallest crop where the sunglasses, the profile and the
+crown are all still separable at 32 pixels.
+
+**Palette PNG, and the reason is the repository rather than the wire.** Truecolour is
+491 KB for an image drawn at 44 pixels. Quantised it is 123 KB, and the two were rendered
+side by side at 180 and at 56 with nothing to choose between them: the artwork is flat
+vector shapes with one soft gradient across the skin, which is close to the best case for
+quantisation. `next/image` re-encodes to AVIF or WebP at the requested size either way, so
+this never affected what the browser downloads.
+
+Two facts about the source file are in the script header because both would waste
+somebody's afternoon. It is named `.png` and `sharp` reports it as WebP. Its background is
+rgb(226, 206, 188), a warm beige, deliberately not keyed out: keying it would cut a hard
+silhouette through the floral crown, where the artwork's own shapes sit on the background
+at low contrast and there is no edge to find.
+
+**Not the `Avatar` component.** That one is keyed by a file stem in `public/avatars` with a
+monogram behind it, so a missing file falls back to the initials "KA" in a filled disc,
+which reads as a person nobody can name. The agent has exactly one portrait and is not in
+the beneficiary book.
+
+**Not the rail either.** The rail keeps its sparkle. Rail buttons invert to a black fill
+with a paper-white icon when active, and a photograph cannot invert, so the portrait would
+have had to sit in a black square that was otherwise the selected state. That is a worse
+object than the glyph it replaced.
+
+**The name was being printed twice.** `PanelFrame` prints "Kora Agent" and the header below
+it printed the same two words again, so the first thing anybody read on opening the panel
+was a repetition. The portrait carries the identity now, and the line beside it says what
+the agent does and what it will not do.
+
+**Two thirds of the column was empty.** It now carries the five slots the parser fills,
+drawn as the same five rows the result table prints. That does two jobs: it teaches the
+input, which "say it, do not fill it in" does not, and it means the result arrives in a
+frame the reader has already seen rather than a structure that appears from nowhere.
+
+The one duplication in the panel is that list. `AGENT_SLOTS` is not derived from a parsed
+response, because it has to exist before there is a response to derive it from. It is
+commented as such: add a `Slot` row, add it there.
+
+**The boundary note moved into the resting state.** The claim that matters most, that the
+agent holds no signer, was only rendered after a parse, which is to say it was invisible
+until somebody had already used the thing. The note after a parse is now about that parse
+rather than a repeat of the same sentence.
+
+### Phase V2, the destination was printing as a field name
+
+Found while testing the panel rather than looked for. The Understood as table read
+"Destination: BO" and the corridor note read "settling in BO via Pollar". The person typed
+"Bolivia" and got an ISO code back.
+
+The code is the right thing to carry between the parser and the corridor engine and the
+wrong thing to render. The resolver returns the name beside it now.
+
+**The set of Pollar destinations is derived rather than listed.** It was a hand-written
+`Set(['BO', 'BR', 'CO', 'MX'])` sitting a few files away from `POLLAR_CORRIDORS`, the table
+it had been copied out of. Two places to update when Pollar adds a ramp, and one of them
+with nothing to remind you. It is now a Map built from that table, which also means the
+name comes for free instead of needing a second country table in the browser.
+
+Everything downstream still uses the code. Only what is rendered changed.
+
+**Gemini is confirmed live.** Known gap 2 said the model name `gemini-2.5-flash` was an
+assumption until a real request proved it. Two sentences were parsed through the panel and
+both came back labelled "Gemini and rules", which is the badge the panel only draws when
+`source === 'gemini'`. The gap is closed.
+
 ## Known gaps, stated plainly
 
 1. **The Pollar hand-off has never run.** Everything else is finished and tested. This one
    step is the proof the project needs, and it is blocked on dashboard settings.
-2. **Gemini has never been called.** The model name `gemini-2.5-flash` is an assumption
-   until a real request proves it.
+2. ~~**Gemini has never been called.**~~ Closed 2026-09-18. Two sentences were parsed
+   through the agent panel and both came back labelled "Gemini and rules", which is the
+   badge the panel only draws when the response says `source === 'gemini'`. The model
+   name `gemini-2.5-flash` is confirmed, not assumed.
 3. **Next.js 16 docs were not read before writing code**, which AGENTS.md asks for. The
    build and typecheck are clean, but that is not the same as being correct. Phase G covers
    the audit.
