@@ -30,6 +30,16 @@ import { signInDemo, DEMO_CREDENTIALS } from '@/lib/demo-auth';
 /** Left panel footage. Swap this path to change the artwork. */
 const PANEL_VIDEO = '/panel.mp4';
 
+/**
+ * Where the band of glass starts and stops being glass.
+ *
+ * Fully opaque between 18 and 86 percent of the panel's height, ramping to
+ * nothing at both ends. The numbers are the band drawn on the mockup; the
+ * length of the ramps is what keeps it from reading as a bar.
+ */
+const BAND_MASK =
+  'linear-gradient(to bottom, transparent 0%, #000 18%, #000 86%, transparent 100%)';
+
 export function SignInPage() {
   const router = useRouter();
 
@@ -292,37 +302,61 @@ function BrandPanel() {
       />
 
       {/*
-        The glass is the card, not the panel.
+        A band of glass, not a card and not the whole panel.
 
-        A full bleed blur made the whole left half soft, which throws away the
-        footage it was supposed to be showing: a blurred room is a grey field
-        with a lamp in it. The pane is now the size of the words, so the video
-        stays sharp everywhere except directly behind the type, which is the
-        only place its detail was ever a problem.
+        Three attempts got here. A gradient scrim was accurate for type in a
+        corner and wrong once the block moved. A full bleed blur softened the
+        entire left half, which throws away the footage it was there to show.
+        A card was the right size and the wrong object: a hard rectangle with a
+        border reads as a component dropped on a photograph, and the brief was
+        premium rather than assembled.
 
-        backdrop-filter clips to the element, so the rounded corners cut the
-        blur as well as the tint and the edge reads as a real pane rather than
-        a rectangle of fog.
+        What is here is a wide horizontal pane, full width, that fades out
+        along its top and bottom edges instead of ending. Nothing about it says
+        where it stops, which is the difference between glass laid over an
+        image and a box sitting on one.
 
-        55 percent is measured, not chosen, and the measurement still holds
-        because the card blurs what sits behind it exactly as the full bleed
-        layer did. Sampling the frame behind the paragraph at ten points across
-        the clip, the footage averages 63 at its darkest and 188 at its
-        brightest as it settles on a lit wall. At a 40 percent tint the worst
-        of those frames put the paragraph at 3.3 to 1 against its background,
-        under the 4.5 that text this size needs. At 55 it reads 5.0.
+        The fade is a mask rather than a gradient of its own colour. A gradient
+        would sit over the blur and darken what it was fading, so the band
+        would lose its tint and keep its blur and the edge would read as a
+        smear. A mask takes the whole layer out together, tint and blur at the
+        same rate, so the footage simply comes back into focus.
 
-        The hairline is doing real work, not decoration. Against the dark half
-        of the clip the card and the footage are close enough in value that the
-        pane has no edge at all without it.
+        Long ramps on purpose. Eighteen percent of the panel's height at the
+        top and fourteen at the bottom, against a two or three percent feather
+        that would still register as a line. Nothing in the composition should
+        have an edge you can point at.
+
+        Both spellings of the property. Safari still wants the prefix, and an
+        unprefixed mask alone means no mask at all there, which is a hard edged
+        band rather than a missing effect.
+
+        64px of blur rather than 40. At 40 the lamp and the pen holder are
+        still readable through the band, which makes it look like a photograph
+        that has gone soft; at 64 they are fields of colour and it looks like
+        glass. Past that the footage stops being footage and the panel may as
+        well be a flat grey.
+
+        50 percent tint, and measured like the ones before it. The paragraph's
+        worst frame across the clip reads 5.4 against the 4.5 it needs, with
+        the headline at 8.0, which leaves the band lighter than the versions
+        before it and lets more of the room through.
       */}
-      <div className="relative max-w-sm rounded-3xl border border-white/10 bg-black/55 p-8 backdrop-blur-2xl">
-        {/*
-          Left aligned, as it was before the centring, and 15 percent larger
-          than the pass that followed it. The mark goes 53 to 61, the headline
-          25 to 29, the paragraph 13 to 15, and the gaps between them move with
-          the type so the block scales rather than loosens.
-        */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-3xl"
+        style={{
+          WebkitMaskImage: BAND_MASK,
+          maskImage: BAND_MASK,
+        }}
+        aria-hidden
+      />
+
+      {/*
+        Left aligned, vertically centred, 15 percent up on the pass before it.
+        The mark is 61, the headline 29, the paragraph 15, and the gaps move
+        with the type so the block scales rather than loosens.
+      */}
+      <div className="relative max-w-sm">
         <Image
           src="/kora-mark-white.png"
           alt="KORA"
