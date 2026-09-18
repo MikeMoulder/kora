@@ -73,6 +73,9 @@ export interface BalancePayload {
   movements: number;
   balance: number;
   currency: string;
+  movements24h: number;
+  /** Null when the balance a day ago was nothing to measure against. */
+  change24hPercent: number | null;
 }
 
 /**

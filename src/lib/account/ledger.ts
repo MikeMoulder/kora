@@ -87,8 +87,21 @@ export interface AccountBalance {
   movements: number;
   balance: number;
   currency: string;
+  /** Signed total of the movements inside the last 24 hours. */
+  movements24h: number;
+  /**
+   * That total as a percentage of what the balance was 24 hours ago.
+   *
+   * Null when there is nothing to divide by, which is a different statement
+   * from zero. Zero means the balance held steady; null means the question
+   * does not have an answer yet, and rendering it as "0.00%" would be a
+   * quietly invented fact.
+   */
+  change24hPercent: number | null;
   entries: LedgerEntry[];
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Opening figure plus movements.
@@ -100,17 +113,31 @@ export interface AccountBalance {
 export async function accountBalance(
   opening: number,
   currency = 'NGN',
+  now = Date.now(),
 ): Promise<AccountBalance> {
   const entries = await ledger.list();
-  const movements = entries
-    .filter((e) => e.currency === currency)
+  const inCurrency = entries.filter((e) => e.currency === currency);
+
+  const movements = inCurrency.reduce((total, e) => total + signedAmount(e), 0);
+  const balance = opening + movements;
+
+  const movements24h = inCurrency
+    .filter((e) => {
+      const at = Date.parse(e.at);
+      return Number.isFinite(at) && now - at <= DAY_MS;
+    })
     .reduce((total, e) => total + signedAmount(e), 0);
+
+  // What the balance was a day ago, which is what the change is a change of.
+  const before = balance - movements24h;
 
   return {
     opening,
     movements,
-    balance: opening + movements,
+    balance,
     currency,
+    movements24h,
+    change24hPercent: before > 0 ? (movements24h / before) * 100 : null,
     entries,
   };
 }

@@ -34,8 +34,6 @@ export interface DemoAccount {
   currency: 'NGN';
   /** Major units. */
   balance: number;
-  /** Change over the period shown, major units. */
-  delta: number;
   country: string;
   receiving: DemoReceivingAccount;
 }
@@ -45,7 +43,6 @@ export const ACCOUNT: DemoAccount = {
   fullName: 'Adaeze Okafor',
   currency: 'NGN',
   balance: 4_820_650.0,
-  delta: 182_400.0,
   country: 'NG',
   receiving: {
     bankName: 'Sterling Bank',

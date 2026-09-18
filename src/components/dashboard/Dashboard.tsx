@@ -266,15 +266,7 @@ function BalanceCard({
           {hidden ? '••••••••' : formatNaira(balance?.balance ?? ACCOUNT.balance)}
         </div>
 
-        <div className="tabular mt-2 truncate text-[13px] text-ink/60">
-          {hidden
-            ? '•••••'
-            : balance && balance.movements !== 0
-              ? // Once something real has landed, say so rather than leaving the
-                // sample monthly figure to take the credit for it.
-                `${formatNaira(balance.movements, { signed: true })} since you opened this`
-              : `${formatNaira(ACCOUNT.delta, { signed: true })} this month`}
-        </div>
+        <Change24h balance={balance} hidden={hidden} />
       </div>
 
       <div className="relative grid grid-cols-2">
@@ -300,6 +292,68 @@ function BalanceCard({
           onClick={onReceive}
         />
       </div>
+    </div>
+  );
+}
+
+
+/**
+ * How the balance moved in the last day, as a percentage.
+ *
+ * A percentage rather than an amount, because the figure it is a percentage
+ * of is the one thing on this card that is honest: the balance. A naira delta
+ * invites you to read it as income, and most of what moves this account is
+ * money passing through on its way somewhere else.
+ *
+ * Three states, deliberately distinct. A real change, a flat day, and no
+ * answer yet. Rendering the third as "0.00%" would invent a fact, so it says
+ * so instead.
+ */
+function Change24h({
+  balance,
+  hidden,
+}: {
+  balance: BalancePayload | null;
+  hidden: boolean;
+}) {
+  if (hidden) {
+    return <div className="tabular mt-2 truncate text-[13px] text-ink/60">•••••</div>;
+  }
+
+  if (!balance || balance.change24hPercent === null) {
+    return (
+      <div className="mt-2 truncate text-[13px] text-ink/50">
+        No change to measure yet
+      </div>
+    );
+  }
+
+  const percent = balance.change24hPercent;
+  const up = percent > 0;
+  const flat = percent === 0;
+
+  return (
+    <div className="mt-2 flex items-center justify-center gap-1.5 text-[13px] text-ink/60">
+      {!flat && (
+        <span
+          aria-hidden
+          className={cn(
+            'inline-flex h-4 w-4 items-center justify-center rounded-full',
+            up ? 'bg-ink/10 text-ink' : 'bg-loss/15 text-loss',
+          )}
+        >
+          {up ? (
+            <ArrowUpRight className="h-2.5 w-2.5" strokeWidth={2.6} />
+          ) : (
+            <ArrowDownLeft className="h-2.5 w-2.5" strokeWidth={2.6} />
+          )}
+        </span>
+      )}
+      <span className="tabular font-medium">
+        {up ? '+' : ''}
+        {percent.toFixed(2)}%
+      </span>
+      <span className="text-ink/45">past 24h</span>
     </div>
   );
 }
