@@ -128,7 +128,7 @@ export function Dashboard() {
             </main>
 
             {panel !== null && (
-              <PanelFrame title={PANEL_TITLES[panel]} onClose={() => open(null)}>
+              <PanelFrame key={panel} title={PANEL_TITLES[panel]} onClose={() => open(null)}>
                 {panel === 'send' && (
                   <SendPanel
                     rates={rates}
@@ -203,7 +203,7 @@ function PanelFrame({
   return (
     <section
       aria-label={title}
-      className="rise w-full shrink-0 border-t border-rule bg-paper px-5 py-6 sm:px-7 xl:w-[360px] xl:border-l xl:border-t-0 xl:px-6"
+      className="panel-in w-full shrink-0 border-t border-rule bg-paper px-5 py-6 sm:px-7 xl:w-[360px] xl:border-l xl:border-t-0 xl:px-6"
     >
       <div className="mb-5 flex items-center justify-between">
         <h2 className="text-[13px] font-semibold tracking-[-0.01em]">{title}</h2>
@@ -211,7 +211,7 @@ function PanelFrame({
           type="button"
           onClick={onClose}
           aria-label={'Close ' + title}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-paper-sunk hover:text-ink"
+          className="press flex h-8 w-8 items-center justify-center rounded-full text-ink-faint hover:bg-paper-sunk hover:text-ink"
         >
           <X className="h-4 w-4" strokeWidth={1.8} />
         </button>
@@ -237,7 +237,7 @@ function PanelTriggers({ onSelect }: { onSelect: (panel: PanelMode) => void }) {
           key={mode}
           type="button"
           onClick={() => onSelect(mode)}
-          className="rounded-xl border border-rule py-2.5 text-[11px] font-medium text-ink-muted transition-colors hover:border-ink hover:text-ink"
+          className="press rounded-xl border border-rule py-2.5 text-[11px] font-medium text-ink-muted hover:border-ink hover:text-ink"
         >
           {PANEL_TITLES[mode]}
         </button>
@@ -275,7 +275,7 @@ function BalanceCard({
   const [hidden, setHidden] = useState(false);
 
   return (
-    <div className="card-block flex min-w-0 flex-col overflow-hidden rounded-[22px] bg-paper p-1.5">
+    <div className="card-block rise flex min-w-0 flex-col overflow-hidden rounded-[22px] bg-paper p-1.5">
       {/*
         * Concentric with the card around it: 22px outer radius less the 6px of
         * padding is 16px inner. Anything else leaves the gap between the two
@@ -287,7 +287,7 @@ function BalanceCard({
           type="button"
           onClick={() => setHidden((v) => !v)}
           aria-label={hidden ? 'Show balance' : 'Hide balance'}
-          className="absolute right-3 top-3 rounded-md p-1.5 text-ink/45 transition-colors hover:bg-ink/10 hover:text-ink"
+          className="press absolute right-3 top-3 rounded-md p-1.5 text-ink/45 hover:bg-ink/10 hover:text-ink"
         >
           {hidden ? (
             <Eye className="h-4 w-4" strokeWidth={1.8} />
@@ -418,12 +418,12 @@ function Action({
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col items-center gap-2 py-4 transition-colors hover:bg-paper-sunk"
+      className="press group flex flex-col items-center gap-2 py-4 hover:bg-paper-sunk"
     >
-      <span className="flex h-9 w-9 items-center justify-center rounded-full border border-rule text-ink-soft transition-colors group-hover:border-ink group-hover:bg-ink group-hover:text-paper">
+      <span className="flex h-9 w-9 items-center justify-center rounded-full border border-rule text-ink-soft transition-[color,background-color,border-color,transform] duration-[220ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-0.5 group-hover:border-ink group-hover:bg-ink group-hover:text-paper">
         {icon}
       </span>
-      <span className="text-[11px] font-medium text-ink-muted transition-colors group-hover:text-ink">
+      <span className="text-[11px] font-medium text-ink-muted transition-colors duration-[130ms] group-hover:text-ink">
         {label}
       </span>
     </button>
@@ -463,7 +463,7 @@ function Transactions({
             <button
               type="button"
               onClick={onViewAll}
-              className="text-[11px] text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
+              className="press text-[11px] text-ink-muted underline-offset-4 hover:text-ink hover:underline"
             >
               View all
             </button>
@@ -475,8 +475,8 @@ function Transactions({
 
       <ul className="mt-3 space-y-2">
         {rows === null
-          ? Array.from({ length: RECENT_LIMIT }, (_, n) => <RowSkeleton key={n} />)
-          : rows.map((tx) => <TransactionRow key={tx.id} tx={tx} />)}
+          ? Array.from({ length: RECENT_LIMIT }, (_, n) => <RowSkeleton key={n} index={n} />)
+          : rows.map((tx, n) => <TransactionRow key={tx.id} tx={tx} index={n} />)}
       </ul>
     </div>
   );

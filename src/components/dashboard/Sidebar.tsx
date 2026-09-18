@@ -119,7 +119,7 @@ function RailButton({
         aria-label={label}
         aria-current={active ? 'true' : undefined}
         className={cn(
-          'flex h-11 w-11 items-center justify-center rounded-xl transition-colors',
+          'press flex h-11 w-11 items-center justify-center rounded-xl',
           active
             ? 'bg-ink text-paper'
             : 'text-ink-faint hover:bg-paper-sunk hover:text-ink',
@@ -136,7 +136,7 @@ function Tooltip({ children }: { children: React.ReactNode }) {
   return (
     <span
       role="tooltip"
-      className="pointer-events-none absolute left-full top-1/2 z-30 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[11px] font-medium text-paper opacity-0 transition-opacity group-hover:opacity-100"
+      className="pointer-events-none absolute left-full top-1/2 z-30 ml-2 -translate-x-1 -translate-y-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[11px] font-medium text-paper opacity-0 transition-[opacity,transform] duration-[130ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-0 group-hover:opacity-100"
     >
       {children}
     </span>

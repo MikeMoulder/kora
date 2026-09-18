@@ -217,14 +217,84 @@ body {
   border: 1px solid var(--color-rule);
 }
 
-/* ── Motion ──────────────────────────────────────────────────────────────
- * Restrained. A payment interface that bounces reads as a toy.
+/* ── Motion ──────────────────────────────────────────────────────
+ * Restrained, and the restraint is the design. A payment interface that
+ * bounces reads as a toy, and nobody trusts a toy with four million naira.
+ *
+ * So: no springs, no overshoot, nothing that arrives late. Every curve below
+ * decelerates into place and stops. What motion is for here is continuity,
+ * answering "where did that come from" and "did my press register", rather
+ * than drawing attention to itself.
+ *
+ * Three durations and no more, because a page where every element picked its
+ * own timing reads as several pages stapled together.
  */
+
+:root {
+  /* Decelerating. Fast at the start, settles without a bounce. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Symmetric, for things that move rather than appear. */
+  --ease-move: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --t-fast: 130ms; /* colour, opacity, a press */
+  --t-base: 220ms; /* transform, position */
+  --t-slow: 340ms; /* something arriving on screen */
+}
+
+/* ── Interaction primitives ────────────────────────────────────
+ * Two classes carrying every hover and press in the app, so no component
+ * invents its own feel and the whole surface answers a cursor the same way.
+ */
+
+/*
+ * A control that can be pressed.
+ *
+ * The scale is deliberately small. At 0.96 the press is felt more than seen,
+ * which is what a button should do; anything deeper starts to look like the
+ * element is being pushed through the page.
+ *
+ * Declared as longhands, and that detail cost an hour once. The `transition`
+ * shorthand resets every part of the property, so a shorthand here silently
+ * cancelled the colour fade on every control it was added to: the rail went
+ * from a hover that eased to one that snapped, and nothing in the markup
+ * looked wrong because the Tailwind class was still sitting right there. The
+ * longhand list covers what a control actually animates, so a component can
+ * add `press` without having to know what it is overriding.
+ */
+.press {
+  transition-property: transform, color, background-color, border-color, box-shadow, opacity;
+  transition-duration: var(--t-fast);
+  transition-timing-function: var(--ease-out);
+}
+
+.press:active {
+  transform: scale(0.96);
+}
+
+/*
+ * A card that answers the cursor by rising rather than by changing colour.
+ *
+ * One pixel, which sounds like nothing and is the entire effect: it is enough
+ * for the eye to register the row it is over without the list appearing to
+ * shuffle as the cursor crosses it.
+ */
+.lift {
+  transition:
+    transform var(--t-base) var(--ease-out),
+    border-color var(--t-fast) ease,
+    box-shadow var(--t-base) var(--ease-out);
+}
+
+.lift:hover {
+  transform: translateY(-1px);
+}
+
+/* ── Entrances ────────────────────────────────────────────── */
 
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -233,8 +303,51 @@ body {
 }
 
 .rise {
-  animation: rise 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: rise var(--t-slow) var(--ease-out) both;
 }
+
+/*
+ * A workspace panel coming in from the edge it lives on.
+ *
+ * Horizontal only from `lg` up, where the panel really is a column at the
+ * right. Below that it stacks under the main area, so it rises like
+ * everything else rather than sliding in from a side it is not on.
+ */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.panel-in {
+  animation: rise var(--t-slow) var(--ease-out) both;
+}
+
+@media (min-width: 80rem) {
+  .panel-in {
+    animation-name: slide-in;
+  }
+}
+
+/*
+ * A list whose rows arrive in order rather than all at once.
+ *
+ * Forty milliseconds apart, and capped at the eighth row. An uncapped stagger
+ * means the last row of a thirty item history waits more than a second, by
+ * which point it is not an entrance, it is a page that has not finished
+ * loading. The cap is applied where the index is set, not here.
+ */
+.stagger {
+  animation: rise var(--t-slow) var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+/* ── Ambient ─────────────────────────────────────────────── */
 
 @keyframes flow-dash {
   to {
@@ -261,11 +374,49 @@ body {
   animation: pulse-soft 1.8s ease-in-out infinite;
 }
 
+/*
+ * Skeletons breathe rather than shimmer.
+ *
+ * A sweeping highlight is the usual answer and it is the wrong one here: it
+ * moves, so the eye tracks it, and there is nothing to read when it gets
+ * there. An opacity pulse says "not yet" without asking to be watched.
+ */
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.breathe {
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+/* ── Reduced motion ──────────────────────────────────────────
+ * Everything off, not merely slower. Somebody who has asked their system for
+ * reduced motion has usually asked because motion makes them ill, and a
+ * half-speed slide is still a slide.
+ *
+ * Transitions are collapsed rather than removed so hover and focus states
+ * still change, they just change instantly.
+ */
+
 @media (prefers-reduced-motion: reduce) {
-  .rise,
-  .flow-line,
-  .pulse-soft {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .press:active,
+  .lift:hover {
+    transform: none;
   }
 }
 

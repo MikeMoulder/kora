@@ -193,7 +193,7 @@ export function SpendChart({ activity }: { activity: ActivityPayload | null }) {
   const calloutPercent = Math.min(86, Math.max(14, columnPercent));
 
   return (
-    <div className="card-block rounded-[22px] bg-paper p-5">
+    <div className="card-block rise rounded-[22px] bg-paper p-5">
       <CardLabel action={<RangePicker range={range} onChange={setRange} />}>
         Outbound spend
       </CardLabel>
@@ -204,8 +204,14 @@ export function SpendChart({ activity }: { activity: ActivityPayload | null }) {
        * A smaller gap puts the callout through the range picker.
        */}
       <div className="relative mt-[62px]">
+        {/*
+          * The callout and the ring glide between columns rather than cutting.
+          * Sweeping a cursor across ninety columns is the one gesture this
+          * chart really has, and a label that teleports on every column makes
+          * it read as ninety separate charts instead of one continuous one.
+          */}
         <div
-          className="pointer-events-none absolute -top-2 z-10 -translate-x-1/2 -translate-y-full"
+          className="pointer-events-none absolute -top-2 z-10 -translate-x-1/2 -translate-y-full transition-[left] duration-[220ms] ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none"
           style={{ left: `${calloutPercent}%` }}
         >
           <div className="rounded-xl bg-accent px-3 py-2 text-center text-ink shadow-[0_6px_16px_-8px_rgba(15,17,16,0.25)]">
@@ -228,7 +234,7 @@ export function SpendChart({ activity }: { activity: ActivityPayload | null }) {
           <span
             aria-hidden
             style={{ left: `${columnPercent}%` }}
-            className="pointer-events-none absolute -top-[3px] z-10 h-[10px] w-[10px] -translate-x-1/2 rounded-full border-[2.5px] border-accent-deep bg-paper"
+            className="pointer-events-none absolute -top-[3px] z-10 h-[10px] w-[10px] -translate-x-1/2 rounded-full border-[2.5px] border-accent-deep bg-paper transition-[left] duration-[220ms] ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none"
           />
         )}
 
@@ -319,6 +325,7 @@ function Column({
             style={{ maxWidth: DOT_MAX }}
             className={cn(
               'aspect-square w-[55%] shrink-0 rounded-full',
+              'transition-colors duration-[130ms] motion-reduce:transition-none',
               lit
                 ? selected
                   ? 'bg-accent-deep'
@@ -356,7 +363,7 @@ function RangePicker({
         value={range}
         onChange={(e) => onChange(e.target.value as SpendRange)}
         aria-label="Spend period"
-        className="appearance-none rounded-lg border border-rule bg-paper py-1 pl-2.5 pr-7 text-[11px] font-medium text-ink-muted outline-none transition-colors hover:border-ink hover:text-ink"
+        className="press appearance-none rounded-lg border border-rule bg-paper py-1 pl-2.5 pr-7 text-[11px] font-medium text-ink-muted outline-none hover:border-ink hover:text-ink"
       >
         {SPEND_RANGES.map((option) => (
           <option key={option} value={option}>

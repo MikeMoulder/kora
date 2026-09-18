@@ -467,7 +467,7 @@ export function SendPanel({
           type="button"
           onClick={send}
           disabled={busy}
-          className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
+          className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper press hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
         >
           {busy && <Spinner />}
           {busy ? 'Sending' : `Send ${formatNaira(amount)}`}
@@ -494,14 +494,14 @@ export function SendPanel({
             type="button"
             onClick={fillMock}
             title="Fill the form with test details"
-            className="rounded-md border border-dashed border-ink-ghost px-2 py-1 text-[10px] font-medium text-ink-faint transition-colors hover:border-ink hover:text-ink"
+            className="press rounded-md border border-dashed border-ink-ghost px-2 py-1 text-[10px] font-medium text-ink-faint hover:border-ink hover:text-ink"
           >
             Fill mock
           </button>
           <button
             type="button"
             onClick={() => setPicking(true)}
-            className="text-xs text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
+            className="press text-xs text-ink-muted underline-offset-4 hover:text-ink hover:underline"
           >
             Saved
           </button>
@@ -518,7 +518,7 @@ export function SendPanel({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Full name"
-            className="h-10 w-full rounded-lg border border-rule bg-paper-sunk px-3 text-sm outline-none transition-colors placeholder:text-ink-faint focus:border-ink focus:bg-paper"
+            className="h-10 w-full rounded-lg border border-rule bg-paper-sunk px-3 text-sm outline-none transition-[color,background-color,border-color] duration-[130ms] placeholder:text-ink-faint focus:border-ink focus:bg-paper"
           />
         </Field>
 
@@ -526,7 +526,7 @@ export function SendPanel({
           <select
             value={country}
             onChange={(e) => setCountry(e.target.value)}
-            className="h-10 w-full rounded-lg border border-rule bg-paper-sunk px-3 text-sm outline-none transition-colors focus:border-ink focus:bg-paper"
+            className="h-10 w-full rounded-lg border border-rule bg-paper-sunk px-3 text-sm outline-none transition-[color,background-color,border-color] duration-[130ms] focus:border-ink focus:bg-paper"
           >
             <option value="">Choose a country</option>
             {destinations.map((d) => (
@@ -542,7 +542,7 @@ export function SendPanel({
             value={account}
             onChange={(e) => setAccount(e.target.value)}
             placeholder="Bank and account number"
-            className="h-10 w-full rounded-lg border border-rule bg-paper-sunk px-3 text-sm outline-none transition-colors placeholder:text-ink-faint focus:border-ink focus:bg-paper"
+            className="h-10 w-full rounded-lg border border-rule bg-paper-sunk px-3 text-sm outline-none transition-[color,background-color,border-color] duration-[130ms] placeholder:text-ink-faint focus:border-ink focus:bg-paper"
           />
         </Field>
 
@@ -565,7 +565,7 @@ export function SendPanel({
             onChange={(e) => setNote(e.target.value)}
             placeholder="What it is for"
             maxLength={60}
-            className="h-10 w-full rounded-lg border border-rule bg-paper-sunk px-3 text-sm outline-none transition-colors placeholder:text-ink-faint focus:border-ink focus:bg-paper"
+            className="h-10 w-full rounded-lg border border-rule bg-paper-sunk px-3 text-sm outline-none transition-[color,background-color,border-color] duration-[130ms] placeholder:text-ink-faint focus:border-ink focus:bg-paper"
           />
         </Field>
       </div>
@@ -586,7 +586,7 @@ export function SendPanel({
         type="button"
         onClick={review}
         disabled={!ready || busy || amount > available}
-        className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
+        className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper press hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
       >
         {busy && <Spinner />}
         {busy ? 'Pricing' : 'Review payment'}
@@ -733,13 +733,13 @@ export function AgentPanel({ onCompose }: { onCompose?: (draft: SendDraft) => vo
           maxLength={300}
           placeholder="Send &#8358;250,000 to Carlos in Bolivia for the brand system"
           aria-label="Tell Kora Agent what to do"
-          className="w-full resize-none rounded-xl border border-rule bg-paper-sunk px-3.5 py-3 text-sm leading-relaxed outline-none transition-colors placeholder:text-ink-faint focus:border-ink focus:bg-paper"
+          className="w-full resize-none rounded-xl border border-rule bg-paper-sunk px-3.5 py-3 text-sm leading-relaxed outline-none transition-[color,background-color,border-color] duration-[130ms] placeholder:text-ink-faint focus:border-ink focus:bg-paper"
         />
 
         <button
           type="submit"
           disabled={!text.trim() || busy}
-          className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
+          className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper press hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
         >
           {busy && <Spinner />}
           {busy ? 'Reading' : 'Read this'}
@@ -848,7 +848,7 @@ export function AgentPanel({ onCompose }: { onCompose?: (draft: SendDraft) => vo
               });
             }}
             disabled={!ready}
-            className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
+            className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper press hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
           >
             Review this payment
             <ArrowRight className="h-4 w-4" strokeWidth={2} />
@@ -913,7 +913,7 @@ export function BeneficiaryPanel({ onCompose }: { onCompose?: (draft: SendDraft)
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by name, country or role"
-          className="h-10 w-full rounded-lg border border-rule bg-paper-sunk pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-ink-faint focus:border-ink focus:bg-paper"
+          className="h-10 w-full rounded-lg border border-rule bg-paper-sunk pl-9 pr-3 text-sm outline-none transition-[color,background-color,border-color] duration-[130ms] placeholder:text-ink-faint focus:border-ink focus:bg-paper"
         />
       </div>
 
@@ -927,7 +927,7 @@ export function BeneficiaryPanel({ onCompose }: { onCompose?: (draft: SendDraft)
         {filtered.map((b) => (
           <div
             key={b.id}
-            className="card-row group rounded-[14px] bg-paper p-3"
+            className="card-row lift group rounded-[14px] bg-paper p-3"
           >
             <div className="flex items-center gap-3">
               <Avatar id={b.avatarId} name={b.name} size={38} />
@@ -998,7 +998,7 @@ function BeneficiaryPicker({
             key={b.id}
             type="button"
             onClick={() => onPick(b)}
-            className="card-row flex w-full items-center gap-3 rounded-[14px] bg-paper p-3 text-left"
+            className="card-row lift press flex w-full items-center gap-3 rounded-[14px] bg-paper p-3 text-left"
           >
             <Avatar id={b.avatarId} name={b.name} size={36} />
             <div className="min-w-0">
@@ -1082,8 +1082,10 @@ export function ActivityPanel({ activity }: { activity: ActivityPayload | null }
         */}
       <ul className="-mr-1 mt-4 max-h-[min(60vh,560px)] space-y-2 overflow-y-auto pr-1">
         {rows === null
-          ? Array.from({ length: 6 }, (_, n) => <RowSkeleton key={n} />)
-          : rows.map((tx) => <TransactionRow key={tx.id} tx={tx} showDate />)}
+          ? Array.from({ length: 6 }, (_, n) => <RowSkeleton key={n} index={n} />)
+          : rows.map((tx, n) => (
+              <TransactionRow key={tx.id} tx={tx} index={n} showDate />
+            ))}
       </ul>
     </div>
   );
@@ -1351,7 +1353,7 @@ function Deposit({ mode, onCredited }: { mode: string; onCredited?: () => void }
           type="button"
           onClick={start}
           disabled={busy || amount < 100}
-          className="flex h-10 shrink-0 items-center gap-2 rounded-lg bg-ink px-4 text-[13px] font-medium text-paper transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
+          className="flex h-10 shrink-0 items-center gap-2 rounded-lg bg-ink px-4 text-[13px] font-medium text-paper press hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
         >
           {busy && <Spinner />}
           {stage === 'opening' ? 'Opening' : stage === 'waiting' ? 'Waiting' : 'Deposit'}

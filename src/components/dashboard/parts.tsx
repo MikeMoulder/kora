@@ -138,7 +138,7 @@ export function IconButton({
       aria-current={active ? 'page' : undefined}
       title={label}
       className={cn(
-        'flex h-11 w-11 items-center justify-center rounded-full transition-colors',
+        'press flex h-11 w-11 items-center justify-center rounded-full',
         active
           ? 'bg-ink text-paper'
           : 'border border-rule bg-paper text-ink-muted hover:border-ink hover:text-ink',
@@ -180,16 +180,29 @@ export function CardLabel({
 export function TransactionRow({
   tx,
   showDate = false,
+  index = 0,
 }: {
   tx: ActivityItem;
   /** The panel says when, since it is a history rather than a headline. */
   showDate?: boolean;
+  /**
+   * Position in the list, which drives the entrance delay.
+   *
+   * Capped at eight here rather than in the stylesheet, because the cap is a
+   * fact about this list and not about staggering. A thirty row history whose
+   * last row waits over a second has stopped making an entrance and started
+   * looking like a page that has not finished loading.
+   */
+  index?: number;
 }) {
   const incoming = tx.direction === 'in';
   const when = relativeDay(tx.at);
 
   return (
-    <li className="card-row flex items-center gap-3 rounded-[18px] bg-paper px-3.5 py-2.5">
+    <li
+      style={{ '--i': Math.min(index, 8) } as React.CSSProperties}
+      className="card-row stagger lift flex items-center gap-3 rounded-[18px] bg-paper px-3.5 py-2.5"
+    >
       <Avatar id={tx.avatarId} name={tx.party} kind={tx.kind} size={44} />
 
       <div className="min-w-0 flex-1">
@@ -226,10 +239,13 @@ export function TransactionRow({
  * Drawn at the real row's dimensions rather than as a shorter bar, so nothing
  * reflows when the data lands.
  */
-export function RowSkeleton() {
+export function RowSkeleton({ index = 0 }: { index?: number }) {
   return (
-    <li className="card-row flex items-center gap-3 rounded-[18px] bg-paper px-3.5 py-2.5">
-      <span className="h-11 w-11 shrink-0 rounded-full bg-paper-sunk" />
+    <li className="card-row breathe flex items-center gap-3 rounded-[18px] bg-paper px-3.5 py-2.5">
+      <span
+        style={{ animationDelay: `${index * 90}ms` }}
+        className="h-11 w-11 shrink-0 rounded-full bg-paper-sunk"
+      />
       <div className="min-w-0 flex-1 space-y-1.5">
         <span className="block h-3 w-1/2 rounded bg-paper-sunk" />
         <span className="block h-2.5 w-1/4 rounded bg-paper-sunk" />
