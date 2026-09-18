@@ -2,14 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowDownLeft, ArrowUpRight, Bell, Eye, EyeOff, Repeat, X } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Bell, Eye, EyeOff, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sidebar, PANEL_TITLES, type PanelMode } from './Sidebar';
 import { SpendChart } from './SpendChart';
 import {
   AgentPanel,
   BeneficiaryPanel,
-  ConvertPanel,
   ReceivePanel,
   SendPanel,
   useRates,
@@ -41,23 +40,9 @@ import {
  */
 export function Dashboard() {
   const [panel, setPanel] = useState<PanelMode | null>(null);
-  const [draftAmount, setDraftAmount] = useState<number | null>(null);
   const rates = useRates();
 
-  /**
-   * Opening any panel clears the draft. It exists only for the hop Convert
-   * makes into Send, so a figure typed ten minutes ago cannot reappear under
-   * a send the person started from the rail.
-   */
-  const open = (next: PanelMode | null) => {
-    setDraftAmount(null);
-    setPanel(next);
-  };
-
-  const quoteFromConvert = (amount: number) => {
-    setDraftAmount(amount);
-    setPanel('send');
-  };
+  const open = (next: PanelMode | null) => setPanel(next);
 
   return (
     <div className="canvas min-h-screen p-0 lg:p-6 xl:p-9 2xl:p-14">
@@ -85,29 +70,22 @@ export function Dashboard() {
                   <BalanceCard
                     rates={rates}
                     onPay={() => open('send')}
-                    onConvert={() => open('convert')}
                     onReceive={() => open('receive')}
                   />
+                  <SpendChart />
                 </div>
 
                 <div className="min-w-0">
                   <Transactions />
                 </div>
               </div>
-
-              <SpendChart />
             </main>
 
             {panel !== null && (
               <PanelFrame title={PANEL_TITLES[panel]} onClose={() => open(null)}>
-                {panel === 'send' && (
-                  <SendPanel rates={rates} initialAmount={draftAmount ?? undefined} />
-                )}
+                {panel === 'send' && <SendPanel rates={rates} />}
                 {panel === 'agent' && <AgentPanel />}
                 {panel === 'beneficiaries' && <BeneficiaryPanel />}
-                {panel === 'convert' && (
-                  <ConvertPanel rates={rates} onQuote={quoteFromConvert} />
-                )}
                 {panel === 'receive' && <ReceivePanel />}
               </PanelFrame>
             )}
@@ -219,12 +197,10 @@ function PanelTriggers({ onSelect }: { onSelect: (panel: PanelMode) => void }) {
 function BalanceCard({
   rates,
   onPay,
-  onConvert,
   onReceive,
 }: {
   rates: RatesPayload | null;
   onPay: () => void;
-  onConvert: () => void;
   onReceive: () => void;
 }) {
   const [hidden, setHidden] = useState(false);
@@ -265,16 +241,11 @@ function BalanceCard({
         {hidden ? '•••••' : `${formatNaira(ACCOUNT.delta, { signed: true })} this month`}
       </div>
 
-      <div className="mt-5 grid grid-cols-3 gap-1 border-t border-ink/15 pt-4">
+      <div className="mt-5 grid grid-cols-2 gap-1 border-t border-ink/15 pt-4">
         <Action
           icon={<ArrowUpRight className="h-4 w-4" strokeWidth={1.8} />}
           label="Pay"
           onClick={onPay}
-        />
-        <Action
-          icon={<Repeat className="h-4 w-4" strokeWidth={1.8} />}
-          label="Convert"
-          onClick={onConvert}
         />
         <Action
           icon={<ArrowDownLeft className="h-4 w-4" strokeWidth={1.8} />}

@@ -24,13 +24,12 @@ import { ACCOUNT } from '@/lib/demo-data';
  * column of icons that would then need eight.
  */
 
-export type PanelMode = 'send' | 'agent' | 'beneficiaries' | 'convert' | 'receive';
+export type PanelMode = 'send' | 'agent' | 'beneficiaries' | 'receive';
 
 export const PANEL_TITLES: Record<PanelMode, string> = {
   send: 'Send money',
   agent: 'Kora Agent',
   beneficiaries: 'Beneficiaries',
-  convert: 'Convert',
   receive: 'Receive',
 };
 

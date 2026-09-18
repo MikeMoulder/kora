@@ -3,13 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  ArrowDown,
   ArrowDownLeft,
   ArrowRight,
   Check,
   Copy,
   Delete,
-  Repeat,
   Search,
   Sparkles,
   Star,
@@ -88,19 +86,10 @@ function intentHref(text: string) {
 
 // ── Send ──────────────────────────────────────────────────────────────────
 
-export function SendPanel({
-  rates,
-  initialAmount,
-}: {
-  rates: RatesPayload | null;
-  /** Seeded when Convert hands its amount over, so the figure is not retyped. */
-  initialAmount?: number;
-}) {
+export function SendPanel({ rates }: { rates: RatesPayload | null }) {
   const router = useRouter();
   const [beneficiary, setBeneficiary] = useState<Beneficiary>(BENEFICIARIES[0]);
-  const [digits, setDigits] = useState(() =>
-    initialAmount && initialAmount > 0 ? String(Math.round(initialAmount)) : '100000',
-  );
+  const [digits, setDigits] = useState('100000');
   const [note, setNote] = useState('');
   const [picking, setPicking] = useState(false);
 
@@ -780,204 +769,6 @@ function CopyRow({
           <Copy className="h-3.5 w-3.5" strokeWidth={1.8} />
         )}
       </button>
-    </div>
-  );
-}
-
-// ── Convert ───────────────────────────────────────────────────────────────
-
-interface ConvertTarget {
-  code: string;
-  name: string;
-  symbol: string;
-  /** Null for an asset rather than a country's money. */
-  country: string | null;
-  /** Units of the target for one naira. */
-  perNaira: number;
-}
-
-/**
- * Everything the naira can be read against, in one vocabulary.
- *
- * The cross-rate strip quotes per 1,000 naira because that is what reads on a
- * dashboard, and the payout rates quote per naira because the send panel
- * multiplies them by a typed amount. Convert needs one of those, not both, so
- * they are normalised here rather than at every call site that would otherwise
- * have to remember which feed it is holding.
- *
- * USDC is on the list because it is not decoration. It is the asset the
- * corridor actually settles in, which makes it the one conversion KORA
- * genuinely performs rather than merely quotes.
- */
-function convertTargets(rates: RatesPayload | null): ConvertTarget[] {
-  if (!rates) return [];
-
-  return [
-    {
-      code: 'USDC',
-      name: 'What the corridor settles in',
-      symbol: '$',
-      country: null,
-      perNaira: 1 / rates.basePerUsd,
-    },
-    ...rates.rates.map((r) => ({
-      code: r.code,
-      name: r.name,
-      symbol: r.symbol,
-      country: r.country,
-      perNaira: r.value / rates.per,
-    })),
-    ...rates.payouts.map((p) => ({
-      code: p.code,
-      name: p.name,
-      symbol: p.symbol,
-      country: p.country,
-      perNaira: p.perNaira,
-    })),
-  ];
-}
-
-/** Large amounts do not need decimals; small ones are useless without them. */
-function formatTarget(target: ConvertTarget, value: number) {
-  const places = value >= 1000 ? 0 : 2;
-  return `${target.symbol}${value.toLocaleString(undefined, {
-    minimumFractionDigits: places,
-    maximumFractionDigits: places,
-  })}`;
-}
-
-/**
- * Convert.
- *
- * A rate, not a wallet. KORA holds no balance in cedi or boliviano, so this
- * panel deliberately cannot move anything: it reads the same live feed the
- * quote engine reads and shows what the naira is worth against it.
- *
- * The one honest next step from a rate is a payment, so the button hands the
- * amount to the send panel rather than inventing a second path to the
- * corridor. The figure here is mid-market and says so, because the corridor's
- * own quote carries a rail fee and a spread on top and only Review knows them.
- */
-export function ConvertPanel({
-  rates,
-  onQuote,
-}: {
-  rates: RatesPayload | null;
-  onQuote: (amount: number) => void;
-}) {
-  const targets = useMemo(() => convertTargets(rates), [rates]);
-  const [code, setCode] = useState('USDC');
-  const [digits, setDigits] = useState('100000');
-
-  const amount = Number(digits || '0');
-  const target = targets.find((t) => t.code === code) ?? null;
-  const converted = target ? amount * target.perNaira : null;
-  const overBalance = amount > ACCOUNT.balance;
-
-  return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2.5">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink text-paper">
-          <Repeat className="h-4 w-4" strokeWidth={1.8} />
-        </span>
-        <div>
-          <div className="text-sm font-semibold">Convert</div>
-          <div className="text-[11px] text-ink-faint">Live mid-market rate</div>
-        </div>
-      </div>
-
-      <div className="mt-5 rounded-xl border border-rule bg-paper-sunk px-3.5 py-3">
-        <label
-          htmlFor="convert-amount"
-          className="text-[10px] uppercase tracking-[0.12em] text-ink-faint"
-        >
-          You convert
-        </label>
-        <div className="mt-1.5 flex items-center gap-2">
-          <span className="text-[22px] font-semibold leading-none">&#8358;</span>
-          <input
-            id="convert-amount"
-            value={amount.toLocaleString()}
-            onChange={(e) => setDigits(e.target.value.replace(/[^0-9]/g, '').slice(0, 12))}
-            inputMode="numeric"
-            className="tabular w-full bg-transparent text-[22px] font-semibold leading-none tracking-[-0.02em] outline-none"
-          />
-        </div>
-        <div
-          className={cn('tabular mt-2 text-[11px]', overBalance ? 'text-loss' : 'text-ink-faint')}
-        >
-          {overBalance
-            ? `More than the balance of ${formatNaira(ACCOUNT.balance)}`
-            : `Balance ${formatNaira(ACCOUNT.balance)}`}
-        </div>
-      </div>
-
-      <div className="my-2 flex justify-center text-ink-faint">
-        <ArrowDown className="h-4 w-4" strokeWidth={1.8} />
-      </div>
-
-      <div className="rounded-xl border-[1.5px] border-ink px-3.5 py-3">
-        <div className="text-[10px] uppercase tracking-[0.12em] text-ink-faint">You get</div>
-        <div className="tabular mt-1.5 truncate text-[22px] font-semibold leading-none tracking-[-0.02em]">
-          {target && converted !== null ? formatTarget(target, converted) : '—'}
-        </div>
-        <div className="mt-2 truncate text-[11px] text-ink-faint">
-          {target
-            ? `₦1 = ${target.perNaira.toFixed(target.perNaira >= 1 ? 4 : 6)} ${target.code}`
-            : 'Loading rates'}
-        </div>
-      </div>
-
-      <div className="mt-4 text-[10px] uppercase tracking-[0.12em] text-ink-faint">Into</div>
-
-      <div className="mt-2 grid grid-cols-2 gap-1.5">
-        {targets.map((t) => (
-          <button
-            key={t.code}
-            type="button"
-            onClick={() => setCode(t.code)}
-            aria-current={t.code === code ? 'true' : undefined}
-            title={t.name}
-            className={cn(
-              'flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-[11px] font-medium transition-colors',
-              t.code === code
-                ? 'border-ink bg-ink text-paper'
-                : 'border-rule text-ink-muted hover:border-ink hover:text-ink',
-            )}
-          >
-            {t.country ? (
-              <Flag code={t.country} size={12} />
-            ) : (
-              <span className="text-[9px]" aria-hidden>
-                &#9679;
-              </span>
-            )}
-            {t.code}
-          </button>
-        ))}
-
-        {targets.length === 0 &&
-          Array.from({ length: 6 }, (_, i) => (
-            <div key={i} className="h-[34px] animate-pulse rounded-lg bg-paper-sunk" />
-          ))}
-      </div>
-
-      <button
-        type="button"
-        onClick={() => onQuote(amount)}
-        disabled={amount <= 0}
-        className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
-      >
-        Quote this as a payment
-        <ArrowRight className="h-4 w-4" strokeWidth={2} />
-      </button>
-
-      <p className="mt-3 text-[10px] leading-relaxed text-ink-faint">
-        Mid-market, from {rates ? rates.source : 'the live feed'}
-        {rates ? (rates.stale ? ', cached' : ', live') : ''}. KORA holds no balance in
-        another currency, so nothing on this panel moves money. A real payment adds the
-        rail fee and the spread, and only the quote at Review knows them.
-      </p>
     </div>
   );
 }

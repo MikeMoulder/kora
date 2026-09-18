@@ -52,7 +52,13 @@ export function SpendChart() {
         Outbound spend
       </CardLabel>
 
-      <div className="relative mt-6">
+      {/*
+        * The callout is drawn above the plot, so the gap under the heading has
+        * to clear its full height rather than look like a comfortable margin.
+        * At the narrow width the chart now sits in, a smaller gap puts the
+        * callout through the period selector.
+        */}
+      <div className="relative mt-14">
         {/* Callout for the selected column. */}
         <div
           className="pointer-events-none absolute -top-1 z-10 -translate-x-1/2 -translate-y-full"
