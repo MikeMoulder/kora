@@ -20,6 +20,7 @@ import {
   type RatesPayload,
   type SendDraft,
 } from './panels';
+import { SchedulePanel, useSchedule } from './SchedulePanel';
 import { Avatar, CardLabel, IconButton, RowSkeleton, TransactionRow } from './parts';
 import { Flag } from '../Flag';
 import { ACCOUNT, formatNaira, relativeDay } from '@/lib/demo-data';
@@ -56,6 +57,27 @@ export function Dashboard() {
     void refreshBalance();
     void refreshActivity();
   }, [refreshBalance, refreshActivity]);
+
+  /*
+   * The scheduler, such as it is.
+   *
+   * Mounted here rather than inside the panel, and that is the whole design.
+   * A payment due at nine has to go out at nine whether or not anybody has
+   * opened the Scheduled panel, so the thing that fires it lives on the
+   * dashboard itself. Putting it in the panel would have meant a payment only
+   * sends while somebody is looking at the list of payments that have not
+   * sent.
+   *
+   * It calls `refresh` when something actually went, because by then the
+   * balance, the activity list and the spend chart are all a payment behind.
+   */
+  const { schedule, refresh: refreshSchedule } = useSchedule(refresh);
+
+  /** A scheduled payment moves the balance the moment it is booked. */
+  const refreshAll = useCallback(() => {
+    refresh();
+    void refreshSchedule();
+  }, [refresh, refreshSchedule]);
 
   /**
    * Opening a panel by hand clears any draft. A set of fields composed ten
@@ -135,8 +157,11 @@ export function Dashboard() {
                     rates={rates}
                     balance={balance}
                     draft={draft}
-                    onSent={refresh}
+                    onSent={refreshAll}
                   />
+                )}
+                {panel === 'scheduled' && (
+                  <SchedulePanel schedule={schedule} onChange={refreshAll} />
                 )}
                 {panel === 'agent' && <AgentPanel onCompose={compose} />}
                 {panel === 'beneficiaries' && <BeneficiaryPanel onCompose={compose} />}

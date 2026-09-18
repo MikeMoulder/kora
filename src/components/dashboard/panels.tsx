@@ -5,6 +5,7 @@ import {
   ArrowDownLeft,
   ArrowRight,
   ArrowUpRight,
+  CalendarClock,
   Check,
   Copy,
   Search,
@@ -158,6 +159,15 @@ export interface SendDraft {
   account?: string;
   amount?: number;
   note?: string;
+  /**
+   * When the agent read a date out of the sentence. ISO 8601.
+   *
+   * Absent means now, which is also what the parser means by `timing: 'now'`.
+   * A draft carrying this opens the send form already set to schedule, with
+   * the date filled, because "pay Carlos on Friday" has said everything and
+   * making somebody re-enter the Friday is the opposite of the point.
+   */
+  dueAt?: string;
 }
 
 // ── Send ──────────────────────────────────────────────────────────────────
@@ -189,6 +199,93 @@ function destinationsFrom(rates: RatesPayload | null): Destination[] {
     currency: payout.code,
     symbol: payout.symbol,
   }));
+}
+
+/**
+ * A scheduled payment, narrowed to what the dashboard reads.
+ *
+ * Declared here rather than imported from `lib/schedule/types`, which is the
+ * same choice every other payload in this file makes. That module is reached
+ * through `lib/schedule/store`, which imports the Redis client, and a client
+ * component that pulls a server module in for a type is a client component
+ * that will one day pull it in for a value.
+ */
+export interface ScheduledPaymentShape {
+  reference: string;
+  createdAt: string;
+  dueAt: string;
+  recipient: {
+    name: string;
+    country: string;
+    countryName: string;
+    account: string | null;
+    avatarId: string | null;
+  };
+  amount: number;
+  currency: string;
+  note: string | null;
+  origin: 'agent' | 'form';
+  status: 'held' | 'sent' | 'cancelled' | 'failed';
+  outcome: {
+    at: string;
+    hash: string | null;
+    explorer: string | null;
+    delivered: { amount: number; asset: string } | null;
+    message: string | null;
+  } | null;
+}
+
+/**
+ * An ISO instant, in the shape `datetime-local` will accept.
+ *
+ * That input is picky in a way worth writing down: it wants
+ * `YYYY-MM-DDTHH:mm` with no timezone and no seconds, and it silently renders
+ * blank rather than complaining when given anything else. A value that does
+ * not appear is a much harder bug than one that is rejected.
+ *
+ * The arithmetic converts to local time rather than slicing the ISO string,
+ * which would show a person in Lagos a UTC time and call it theirs.
+ */
+function toLocalInput(iso?: string | null): string {
+  const base = iso ? new Date(iso) : defaultDueDate();
+  if (Number.isNaN(base.getTime())) return toLocalInput(null);
+
+  const offset = base.getTimezoneOffset() * 60_000;
+  return new Date(base.getTime() - offset).toISOString().slice(0, 16);
+}
+
+/**
+ * What the picker starts on when nobody has said.
+ *
+ * Tomorrow at nine in the morning, local. A default of "now" would put the
+ * input in a state the API refuses the moment a second passes, and a default
+ * of "in an hour" reads as a stopwatch rather than a payment date.
+ */
+function defaultDueDate(): Date {
+  const next = new Date();
+  next.setDate(next.getDate() + 1);
+  next.setHours(9, 0, 0, 0);
+  return next;
+}
+
+/** The local input's value, back as an ISO instant the API will take. */
+function fromLocalInput(value: string): string | null {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+/** "Fri 19 Sep, 09:00", which is what a person calls a date. */
+export function formatDue(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+
+  return date.toLocaleString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 interface SentPayment {
@@ -223,8 +320,21 @@ export function SendPanel({
   const [digits, setDigits] = useState(draft?.amount ? String(draft.amount) : '');
   const [note, setNote] = useState(draft?.note ?? '');
 
+  /*
+   * When it goes.
+   *
+   * `local` is what the input holds, in the browser's own timezone and in the
+   * shape `datetime-local` insists on, which is `YYYY-MM-DDTHH:mm` with no
+   * zone. The API takes ISO 8601 with a zone, so the conversion happens at the
+   * point of sending rather than being carried in two states that can
+   * disagree.
+   */
+  const [when, setWhen] = useState<'now' | 'later'>(draft?.dueAt ? 'later' : 'now');
+  const [local, setLocal] = useState(() => toLocalInput(draft?.dueAt));
+
   const [quote, setQuote] = useState<KoraQuoteShape | null>(null);
   const [sent, setSent] = useState<SentPayment | null>(null);
+  const [scheduled, setScheduled] = useState<ScheduledPaymentShape | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -251,7 +361,23 @@ export function SendPanel({
     setNote('logo and brand system');
   }, []);
 
-  const ready = name.trim().length > 1 && country !== '' && amount >= 1000;
+  /**
+   * Whether the picked time is one the API will take.
+   *
+   * Checked here as well as on the server, and the two are doing different
+   * jobs. The server's check is the one that matters and cannot be skipped;
+   * this one exists so the button is dead rather than the request failing,
+   * because a form that lets you press Review and then tells you the date was
+   * yesterday has wasted a round trip to say something it already knew.
+   */
+  const dueAt = when === 'later' ? fromLocalInput(local) : null;
+  const dueIsFuture = dueAt !== null && Date.parse(dueAt) > Date.now();
+
+  const ready =
+    name.trim().length > 1 &&
+    country !== '' &&
+    amount >= 1000 &&
+    (when === 'now' || dueIsFuture);
 
   const review = useCallback(async () => {
     setBusy(true);
@@ -309,6 +435,55 @@ export function SendPanel({
     }
   }, [account, amount, destination, name, note, onSent]);
 
+  /**
+   * Book it for later instead of sending it.
+   *
+   * Deliberately a separate function from `send` rather than a branch inside
+   * it. They hit different endpoints, they leave the panel in different
+   * states, and the one thing they must not share is the possibility of
+   * calling the wrong one: a flag threaded through a single function that
+   * either moves money now or reserves it for Friday is a flag that will
+   * eventually be wrong.
+   */
+  const bookIt = useCallback(async () => {
+    if (!destination || !dueAt) return;
+
+    setBusy(true);
+    setError(null);
+
+    try {
+      const body = await fetch('/api/schedule', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          recipientName: name.trim(),
+          country: destination.country,
+          countryName: destination.countryName,
+          account: account.trim() || undefined,
+          amount,
+          note: note.trim() || undefined,
+          dueAt,
+          origin: draft?.dueAt ? 'agent' : 'form',
+        }),
+      }).then((r) => r.json());
+
+      if (!body.ok) throw new Error(body.error ?? 'That could not be scheduled.');
+
+      setScheduled(body.data.payment as ScheduledPaymentShape);
+      setStep('done');
+      /*
+       * The same callback a send uses, because the same thing happened to the
+       * balance. The naira is reserved at this point, so the card and the
+       * activity list are both stale until this fires.
+       */
+      onSent?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'That could not be scheduled.');
+    } finally {
+      setBusy(false);
+    }
+  }, [account, amount, destination, draft?.dueAt, dueAt, name, note, onSent]);
+
   /*
    * A draft that already has everything goes straight to review.
    *
@@ -341,6 +516,74 @@ export function SendPanel({
         }}
         onCancel={() => setPicking(false)}
       />
+    );
+  }
+
+  // ── Done, scheduled ─────────────────────────────────────────────────────
+  /*
+   * A separate finished state, not the receipt with the hash blanked out.
+   *
+   * The sent screen's whole argument is the Stellar transaction: three legs,
+   * an explorer link, a figure that landed. None of that exists yet for a
+   * payment due on Friday, and rendering the same layout with the proof
+   * missing would read as a send that half worked. What did happen is that
+   * money was reserved, so that is what this says.
+   */
+  if (step === 'done' && scheduled) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink text-paper">
+            <CalendarClock className="h-4 w-4" strokeWidth={2} />
+          </span>
+          <div>
+            <div className="text-sm font-semibold">Scheduled</div>
+            <div className="text-[11px] text-ink-faint">{scheduled.reference}</div>
+          </div>
+        </div>
+
+        <dl className="mt-5 space-y-2 text-xs">
+          <Line label="Amount">{formatNaira(scheduled.amount)}</Line>
+          <Line label="To">{scheduled.recipient.name}</Line>
+          <Line label="In">{scheduled.recipient.countryName}</Line>
+          <Line label="Sends">
+            <span className="font-semibold text-ink">{formatDue(scheduled.dueAt)}</span>
+          </Line>
+        </dl>
+
+        <div className="leg-ours mt-5 rounded-xl px-3.5 py-3 text-[11px] leading-relaxed">
+          <div className="font-medium">The naira has already left the balance</div>
+          <div className="mt-1">
+            It is held against this payment rather than promised, so the figure on your
+            balance card is money you can still spend. Cancel before it is due and it comes
+            straight back.
+          </div>
+        </div>
+
+        <p className="mt-4 text-[10px] leading-relaxed text-ink-faint">
+          Nothing has touched Stellar yet. When it falls due, KORA delivers USDC from its
+          float to a Pollar wallet for {scheduled.recipient.name}, and the hash appears
+          under Scheduled.
+        </p>
+
+        <button
+          type="button"
+          onClick={() => {
+            setStep('form');
+            setScheduled(null);
+            setName('');
+            setCountry('');
+            setAccount('');
+            setDigits('');
+            setNote('');
+            setWhen('now');
+            setLocal(toLocalInput(null));
+          }}
+          className="mt-4 text-[11px] text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
+        >
+          Schedule another
+        </button>
+      </div>
     );
   }
 
@@ -492,19 +735,36 @@ export function SendPanel({
           </p>
         )}
 
+        {when === 'later' && dueAt && (
+          <div className="leg-ours mt-5 rounded-xl px-3.5 py-3 text-[11px] leading-relaxed">
+            <div className="font-medium">Scheduled for {formatDue(dueAt)}</div>
+            <div className="mt-0.5">
+              The rate above prices it today. It will be sent at the rate on the day, which
+              is the only figure that can be true for a payment that has not happened yet.
+            </div>
+          </div>
+        )}
+
         <button
           type="button"
-          onClick={send}
+          onClick={when === 'later' ? bookIt : send}
           disabled={busy}
           className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper press hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
         >
           {busy && <Spinner />}
-          {busy ? 'Sending' : `Send ${formatNaira(amount)}`}
+          {busy
+            ? when === 'later'
+              ? 'Scheduling'
+              : 'Sending'
+            : when === 'later'
+              ? `Schedule ${formatNaira(amount)}`
+              : `Send ${formatNaira(amount)}`}
         </button>
 
         <p className="mt-3 text-[10px] leading-relaxed text-ink-faint">
-          Your naira is debited, then KORA delivers USDC from its float to a Pollar wallet
-          for {name}. If the delivery fails the naira comes straight back.
+          {when === 'later'
+            ? `Your naira is debited now and held, so the balance you see is money you can still use. It is delivered to ${name} when it falls due, and comes back if the delivery fails.`
+            : `Your naira is debited, then KORA delivers USDC from its float to a Pollar wallet for ${name}. If the delivery fails the naira comes straight back.`}
         </p>
       </div>
     );
@@ -583,6 +843,7 @@ export function SendPanel({
               onChange={(e) => setDigits(e.target.value.replace(/[^0-9]/g, '').slice(0, 9))}
               inputMode="numeric"
               placeholder="0"
+              aria-label="Amount in naira"
               className="tabular w-full bg-transparent text-sm font-medium outline-none placeholder:text-ink-faint"
             />
           </div>
@@ -597,6 +858,70 @@ export function SendPanel({
             className="h-10 w-full rounded-lg border border-rule bg-paper-sunk px-3 text-sm outline-none transition-[color,background-color,border-color] duration-[130ms] placeholder:text-ink-faint focus:border-ink focus:bg-paper"
           />
         </Field>
+
+        {/*
+          * Not a `Field`.
+          *
+          * `Field` wraps its children in a `<label>`, which is right for a
+          * single input and wrong for this. A label may only name one control,
+          * so a label containing a radiogroup and a datetime input names the
+          * first thing it finds and silently mislabels the rest. The heading
+          * is a plain span here and each control carries its own name.
+          */}
+        <div className="block">
+          <span className="text-[10px] uppercase tracking-[0.12em] text-ink-faint">When</span>
+          <div className="mt-1.5">
+          {/*
+            * Two buttons rather than a checkbox or a select.
+            *
+            * The choice changes what the next screen does with your money, so
+            * both options have to be readable at a glance without opening
+            * anything. A collapsed select showing "Now" hides the fact that
+            * scheduling exists, and this is the only place in the app where
+            * anybody would find out that it does.
+            */}
+          <div
+            role="radiogroup"
+            aria-label="When to send"
+            className="grid grid-cols-2 gap-2"
+          >
+            <TimingChoice
+              label="Now"
+              active={when === 'now'}
+              onClick={() => setWhen('now')}
+            />
+            <TimingChoice
+              label="Schedule"
+              active={when === 'later'}
+              onClick={() => setWhen('later')}
+            />
+          </div>
+
+          {when === 'later' && (
+            <div className="mt-2">
+              <input
+                type="datetime-local"
+                value={local}
+                onChange={(e) => setLocal(e.target.value)}
+                /*
+                 * `min` stops the obvious mistake in the picker itself rather
+                 * than after a round trip. It is not a guard: a browser will
+                 * happily hand back a value outside it and the API refuses
+                 * anything already past regardless.
+                 */
+                min={toLocalInput(new Date().toISOString())}
+                aria-label="Date and time to send"
+                className="h-10 w-full rounded-lg border border-rule bg-paper-sunk px-3 text-sm outline-none transition-[color,background-color,border-color] duration-[130ms] focus:border-ink focus:bg-paper"
+              />
+              <p className="mt-1.5 text-[10px] leading-relaxed text-ink-faint">
+                {dueIsFuture
+                  ? `The naira leaves your balance now and is held until ${formatDue(dueAt as string)}.`
+                  : 'Pick a time in the future.'}
+              </p>
+            </div>
+          )}
+          </div>
+        </div>
       </div>
 
       {amount > available && (
@@ -627,6 +952,44 @@ export function SendPanel({
         corridor engine. Nothing moves until you confirm.
       </p>
     </div>
+  );
+}
+
+/**
+ * One half of the now-or-later choice.
+ *
+ * A button carrying `role="radio"` rather than a real radio input. The two
+ * behave the same for a screen reader, which is what `aria-checked` is for,
+ * and only one of them can be made to look like the rest of this interface
+ * without fighting a user agent stylesheet that differs on every platform.
+ *
+ * The selected state is a fill, not a tick or an outline. That is the same
+ * rule the corridor legs use, and it is the one that survives a bad projector.
+ */
+function TimingChoice({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={active}
+      onClick={onClick}
+      className={cn(
+        'press h-10 rounded-lg border text-sm font-medium transition-[color,background-color,border-color] duration-[130ms]',
+        active
+          ? 'border-ink bg-ink text-paper'
+          : 'border-rule bg-paper-sunk text-ink-muted hover:border-ink hover:text-ink',
+      )}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -942,8 +1305,21 @@ export function AgentPanel({ onCompose }: { onCompose?: (draft: SendDraft) => vo
             <Slot
               label="Timing"
               value={
+                /*
+                 * The date only, not the time, unlike everywhere else.
+                 *
+                 * The parser is given a sentence that says "tomorrow" and has
+                 * to invent an hour to go with it. Rendering that invented
+                 * hour here would present a guess as a decision. The send form
+                 * shows the exact minute, because by then it is a field
+                 * somebody can see and change.
+                 */
                 parsed.intent.timing === 'scheduled' && parsed.intent.scheduledFor
-                  ? new Date(parsed.intent.scheduledFor).toLocaleDateString()
+                  ? new Date(parsed.intent.scheduledFor).toLocaleDateString(undefined, {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short',
+                    })
                   : 'Now'
               }
             />
@@ -983,6 +1359,24 @@ export function AgentPanel({ onCompose }: { onCompose?: (draft: SendDraft) => vo
               onCompose?.({
                 name: parsed.intent.recipientName ?? '',
                 country: destination,
+                /*
+                 * The parsed date, carried through at last.
+                 *
+                 * `timing` and `scheduledFor` have come out of the parser
+                 * since the first version and nothing ever read them, so
+                 * "pay Carlos on Friday" produced a form that would have sent
+                 * it immediately. Only forwarded when the parser said
+                 * `scheduled` and produced a date that is still ahead: a model
+                 * reading "Friday" on a Saturday can return a Friday that has
+                 * gone, and the send form would then open on a schedule it
+                 * cannot book.
+                 */
+                dueAt:
+                  parsed.intent.timing === 'scheduled' &&
+                  parsed.intent.scheduledFor &&
+                  Date.parse(parsed.intent.scheduledFor) > Date.now()
+                    ? parsed.intent.scheduledFor
+                    : undefined,
                 // Only an amount the account can actually spend. KORA funds
                 // from one region and that region is Nigeria, so a figure
                 // the parser read as shillings is not a naira figure and

@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { History, LayoutGrid, Send, Sparkles, Users } from 'lucide-react';
+import { CalendarClock, History, LayoutGrid, Send, Sparkles, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from './parts';
 import { ACCOUNT } from '@/lib/demo-data';
@@ -24,11 +24,12 @@ import { ACCOUNT } from '@/lib/demo-data';
  * column of icons that would then need eight.
  */
 
-export type PanelMode = 'send' | 'agent' | 'beneficiaries' | 'activity' | 'receive';
+export type PanelMode = 'send' | 'agent' | 'scheduled' | 'beneficiaries' | 'activity' | 'receive';
 
 export const PANEL_TITLES: Record<PanelMode, string> = {
   send: 'Send money',
   agent: 'Kora Agent',
+  scheduled: 'Scheduled',
   beneficiaries: 'Beneficiaries',
   activity: 'All activity',
   receive: 'Receive',
@@ -42,6 +43,10 @@ interface RailItem {
 const ITEMS: RailItem[] = [
   { mode: 'send', icon: <Send className="h-[18px] w-[18px]" strokeWidth={1.8} /> },
   { mode: 'agent', icon: <Sparkles className="h-[18px] w-[18px]" strokeWidth={1.8} /> },
+  {
+    mode: 'scheduled',
+    icon: <CalendarClock className="h-[18px] w-[18px]" strokeWidth={1.8} />,
+  },
   { mode: 'beneficiaries', icon: <Users className="h-[18px] w-[18px]" strokeWidth={1.8} /> },
   { mode: 'activity', icon: <History className="h-[18px] w-[18px]" strokeWidth={1.8} /> },
 ];

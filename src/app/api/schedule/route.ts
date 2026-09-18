@@ -55,6 +55,34 @@ interface ScheduleBody {
 const MAX_AHEAD_MS = 365 * 24 * 60 * 60 * 1000;
 
 /**
+ * A due date, in the shape a person reads.
+ *
+ * The ledger entry this goes into is rendered straight into the activity feed,
+ * and the first version put an ISO instant there: "Due
+ * 2026-09-18T10:58:34.345Z." That is the same mistake the Understood as table
+ * was making with the country code, in a different place. A machine timestamp
+ * is the correct thing to store and the wrong thing to show.
+ *
+ * UTC, and it says so. This string is built on the server, where the timezone
+ * is whatever the host happens to be set to and is not the reader's. Naming
+ * the zone is the only version that is true for everybody; quietly formatting
+ * in the server's local time would print a number that is wrong for almost
+ * every reader and looks right to all of them.
+ */
+function humanDate(ms: number): string {
+  return (
+    new Date(ms).toLocaleString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'UTC',
+    }) + ' UTC'
+  );
+}
+
+/**
  * How near is too near.
  *
  * Under a minute, schedule it and the runner picks it up on its next tick,
@@ -130,7 +158,7 @@ export async function POST(request: Request) {
       direction: 'debit',
       amount,
       currency: ACCOUNT.currency,
-      detail: `Held for ${name} in ${countryName}${body.note ? `, ${body.note}` : ''}. Due ${when}.`,
+      detail: `Held for ${name} in ${countryName}${body.note ? `, ${body.note}` : ''}. Due ${humanDate(dueAt)}.`,
       source: 'corridor',
       party: name,
       partyKind: 'person',
