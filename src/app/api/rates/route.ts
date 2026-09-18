@@ -35,19 +35,6 @@ export async function GET() {
   try {
     const base = await getRate(BASE);
 
-    const rates = await Promise.all(
-      CURRENCIES.map(async (currency) => {
-        const target = await getRate(currency.code);
-        return {
-          ...currency,
-          // Both legs are quoted per USD, so the cross is one divided by the
-          // other. Done here rather than in the component so the page never
-          // holds two rates that were fetched moments apart.
-          value: (PER / base.perUsd) * target.perUsd,
-        };
-      }),
-    );
-
     const payouts = await Promise.all(
       PAYOUT_CURRENCIES.map(async (currency) => {
         const target = await getRate(currency.code);
@@ -59,11 +46,9 @@ export async function GET() {
       base: BASE,
       /** Naira per US dollar, for the peg line on the balance card. */
       basePerUsd: base.perUsd,
-      per: PER,
       asOf: base.asOf,
       source: base.source,
       stale: base.stale,
-      rates,
       payouts,
     });
   } catch (err) {

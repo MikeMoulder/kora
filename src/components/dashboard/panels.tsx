@@ -34,22 +34,12 @@ export interface PayoutRate {
   perNaira: number;
 }
 
-export interface CrossRate {
-  code: string;
-  name: string;
-  symbol: string;
-  country: string;
-  value: number;
-}
-
 export interface RatesPayload {
   base: string;
   basePerUsd: number;
-  per: number;
   asOf: string;
   source: string;
   stale: boolean;
-  rates: CrossRate[];
   payouts: PayoutRate[];
 }
 
