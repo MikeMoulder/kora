@@ -11,7 +11,8 @@
     "e2e": "tsx --env-file=.env.local scripts/e2e.ts",
     "typecheck": "tsc --noEmit",
     "setup:settlement": "tsx scripts/setup-settlement.ts",
-    "prepare:logo": "tsx scripts/prepare-logo.ts"
+    "prepare:logo": "tsx scripts/prepare-logo.ts",
+    "prepare:icons": "tsx scripts/prepare-icons.ts"
   },
   "dependencies": {
     "@google/genai": "^2.23.0",

@@ -7,7 +7,7 @@ const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'KORA — the African corridor for Pollar',
+  title: 'KORA | the African corridor for Pollar',
   description:
     'Pollar ramps into Brazil, Colombia, Mexico and Bolivia. KORA is the African corridor provider it does not have yet — written to Pollar’s own adapter contract.',
 };
