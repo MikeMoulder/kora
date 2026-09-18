@@ -20,10 +20,11 @@ Last updated: 2026-09-18
 | --- | --- |
 | African corridor engine | DONE, 34 automated checks passing |
 | Intent parsing | DONE for rules, Gemini written but never run live |
-| Web app and screens | DONE |
-| Operator console | DONE |
+| Web app and screens | Being replaced, see Phase N |
+| Operator console | DONE, not yet restyled |
+| Sign in screen | DONE, new black and white direction |
 | Pollar hand-off | Written, BLOCKED, never executed once |
-| Commits | 45 of a target 50+ |
+| Commits | 50, target met, continuing |
 | Deployed | No |
 | Submitted | No |
 
@@ -252,6 +253,33 @@ This is the phase that decides whether the submission is strong or merely tidy.
 | L3 | Fill live and repository links into `SUBMISSION.md` |
 | L4 | Submit on Boundless |
 | L5 | Post in the Pollar Telegram if that helps visibility |
+
+---
+
+## Phase N. Interface revamp
+
+**Status: PARTIAL. Direction changed to a black and white fintech look.**
+
+The original interface used amber for KORA's leg and cyan for Pollar's. The new direction
+is monochrome, which removes that device and needs a replacement.
+
+| Item | State | Notes |
+| --- | --- | --- |
+| N1 Sign in screen | DONE | Split layout, neutral scale, simulated session |
+| N2 Logo asset pipeline | DONE | Transparent trimmed mark derived from the supplied file |
+| N3 Replacement panel image | BLOCKED | Waiting on the file. One constant swaps it in |
+| N4 Decide how mono encodes leg ownership | DECISION NEEDED | See below |
+| N5 Black and white design tokens | TODO | Replaces the amber and cyan token set |
+| N6 Main payment flow restyle | TODO | |
+| N7 Corridor registry restyle | TODO | |
+| N8 Operator console restyle | TODO | |
+| N9 Route the app behind sign in | TODO | Also stops Pollar mounting on the sign in page |
+
+**N4, the open decision.** Colour currently carries the central argument of the project:
+amber is the leg KORA built, cyan is the leg Pollar owns. In black and white that device
+disappears. The options are to encode ownership through fill and weight instead, to keep
+one single accent colour for Pollar's leg only, or to drop the visual distinction and rely
+on labels. This changes the whole design system, so it should be settled before N5.
 
 ---
 
