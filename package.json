@@ -13,7 +13,8 @@
     "setup:settlement": "tsx scripts/setup-settlement.ts",
     "prepare:logo": "tsx scripts/prepare-logo.ts",
     "prepare:icons": "tsx scripts/prepare-icons.ts",
-    "prepare:agent": "tsx scripts/prepare-agent.ts"
+    "prepare:agent": "tsx scripts/prepare-agent.ts",
+    "probe:earn": "tsx --env-file=.env.local scripts/probe-earn.ts"
   },
   "dependencies": {
     "@google/genai": "^2.23.0",
