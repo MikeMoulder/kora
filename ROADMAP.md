@@ -23,7 +23,7 @@ Last updated: 2026-09-18
 | Web app and screens | DONE |
 | Operator console | DONE |
 | Pollar hand-off | Written, BLOCKED, never executed once |
-| Commits | 1 of a target 50+ |
+| Commits | 45 of a target 50+ |
 | Deployed | No |
 | Submitted | No |
 
@@ -126,7 +126,7 @@ false.
 
 ## Phase F. Git discipline and commit history
 
-**Status: TODO. This is the biggest gap after the hand-off.**
+**Status: DONE. 44 commits, working tree clean, history audited for secrets.**
 
 Right now there is one commit and a large pile of uncommitted work. The target is 50 or
 more commits. The plan is to split the finished work into logical commits that each stand
@@ -144,8 +144,8 @@ on their own, then commit in small steps from here on.
 | F8 | 2 | Smoke suite |
 | F9 | 3 | README, submission material, roadmap and handoff |
 
-That is roughly 37 commits to backfill, landing the project near 38. The remaining phases
-should produce the rest naturally if each task is committed on its own.
+Actual outcome: 44 commits. The remaining phases should carry the project past 50 if each
+task is committed on its own.
 
 Rules being followed: no co-author line, professional subject lines, no em-dashes in
 messages.
@@ -270,7 +270,7 @@ This is the phase that decides whether the submission is strong or merely tidy.
 
 ## The order I suggest
 
-1. **Phase F**, commit history. Everything else is at risk while the work is uncommitted.
+1. ~~**Phase F**, commit history.~~ Done.
 2. **Phase G**, the Next.js audit, because it may change code and is better done before more is written.
 3. **Phase H**, the hand-off, the moment the dashboard is configured.
 4. **Phase J**, deploy.

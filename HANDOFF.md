@@ -4,19 +4,25 @@ Living progress tracker. Updated at the end of every task.
 
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
-**Current phase:** F, commit history
-**Commits:** 1 of 50+ target
+**Current phase:** G, Next.js 16 compliance audit
+**Commits:** 45 of 50+ target
 
 ---
 
 ## Next task
 
-**Phase F1. Start the commit backfill.**
+**Phase G. Next.js 16 compliance audit.**
 
-All finished work is uncommitted. Split it into logical commits, starting with tooling and
-dependencies, then the corridor core module by module.
+AGENTS.md asks for the docs in `node_modules/next/dist/docs/` to be read before writing
+code, because this version has breaking changes. That was not done. The build and the
+typecheck are both clean, so nothing is obviously wrong, but clean is not the same as
+correct.
 
-Nothing else should start until the work is safely in git history.
+Read the App Router docs, then check route handler signatures, the generated layout and
+page prop types, caching defaults on the funding routes, and anything marked deprecated.
+Fix whatever the audit finds.
+
+Doing this before Phase H means any corrections land before more code is written on top.
 
 ---
 
@@ -55,6 +61,10 @@ allowed.
 | 2026-09-18 | Layout, 800px | Browser measurement | Clipping | 1 found, fixed by moving the rail breakpoint to `lg` |
 | 2026-09-18 | Pollar key, live API | `curl` against `sdk.api.pollar.xyz` | 1 | Key valid, origin rejected |
 | 2026-09-18 | Manual browser walkthrough | Compose to hand-off | 1 full run | African leg passed, hand-off blocked |
+| 2026-09-18 | Secret audit across all history | `git grep` over every commit | 2 secrets, 44 commits | Neither key present in history |
+| 2026-09-18 | Typecheck after backfill | `npx tsc --noEmit` | Whole project | Clean |
+| 2026-09-18 | Smoke after backfill | `npm run smoke` | 34 checks | All passed |
+| 2026-09-18 | Production build after backfill | `npm run build` | 11 routes | Clean |
 
 **Total automated checks passing: 34.**
 
@@ -102,6 +112,20 @@ Landing page and composer, plan screen with the fee breakdown, funding screen re
 Pollar shaped instructions, hand-off screen, payment passport, corridor registry page and
 operator console. Colour encodes which side owns which leg.
 
+### Phase F, commit history
+
+Split the finished work into 44 commits, one per module or screen, each with a subject line
+and a body explaining the reasoning. Working tree is clean and the committed tree was
+re-verified: typecheck clean, 34 smoke checks passing, production build clean across 11
+routes.
+
+Audited every commit in the history for the publishable key and the settlement secret.
+Neither appears. `.env.local` is untracked, `.next` is ignored, and the only key strings in
+source are placeholders.
+
+Also fixed gitignore, which had `.env*` and was silently ignoring the environment template
+along with the real env files.
+
 ### Other
 
 A real Stellar testnet settlement account, created and funded by a script in the repo,
@@ -119,6 +143,7 @@ with a USDC trustline open:
 3. **Next.js 16 docs were not read before writing code**, which AGENTS.md asks for. The
    build and typecheck are clean, but that is not the same as being correct. Phase G covers
    the audit.
-4. **Nothing is deployed.** Judges will want a link.
+4. **Nothing is deployed.** Judges will want a link. Nothing is pushed to a remote either,
+   so the history exists only on this machine.
 5. **Existing project docs contain em-dashes.** The preference was noted after they were
    written. Phase K6 covers the cleanup.
