@@ -1,9 +1,10 @@
 'use client';
 
-import { cx, Pill } from './ui';
+import { cn } from '@/lib/utils';
 import { Flag } from './Flag';
+import type { Owner } from './ui/primitives';
 
-export type LegState = 'idle' | 'active' | 'done' | 'blocked';
+export type LegState = 'idle' | 'active' | 'done';
 
 export interface RouteNode {
   key: string;
@@ -12,52 +13,43 @@ export interface RouteNode {
   title: string;
   subtitle?: string;
   value?: string;
-  /** Which side owns this node. Drives the accent colour. */
-  owner: 'kora' | 'pollar' | 'boundary';
+  /** Who owns this step. Drives fill and weight, never hue. */
+  owner: Owner;
   state: LegState;
-  /** Shown as a badge. Used for the deliberately-simulated Bolivian payout. */
+  /** Extra line under the node, used for the simulated payout caveat. */
   tag?: string;
 }
 
 /**
  * The corridor, drawn.
  *
- * The visual argument of the whole project: everything amber is the leg KORA
- * built, everything cyan is the leg Pollar owns, and the seam between them is
- * the hand-off. Someone who never reads the README should still be able to
- * point at the screen and say which half we are claiming.
+ * The visual argument of the project, now carried without colour. A step KORA
+ * built is a solid black block. A step Pollar owns is outlined. A simulated
+ * step is dashed. A step not yet reached is a faint hairline, whatever its
+ * owner, so progress reads as each block resolving into its true treatment.
  */
 export function RouteRail({ nodes }: { nodes: RouteNode[] }) {
   return (
     <div className="relative">
-      {/* Desktop: horizontal rail. Below lg the nodes get too narrow for the
-          country names, so tablets take the vertical rail instead. */}
-      <ol className="hidden items-stretch gap-0 lg:flex">
+      {/* Horizontal only from lg. Below that the nodes are too narrow for the
+          country names, which was measured rather than guessed. */}
+      <ol className="hidden items-stretch lg:flex">
         {nodes.map((node, i) => (
           <li key={node.key} className="flex min-w-0 flex-1 items-center">
             <NodeCard node={node} />
             {i < nodes.length - 1 && (
-              <Connector
-                from={node}
-                to={nodes[i + 1]}
-                active={node.state === 'done' || node.state === 'active'}
-              />
+              <Connector from={node} to={nodes[i + 1]} active={node.state !== 'idle'} />
             )}
           </li>
         ))}
       </ol>
 
-      {/* Mobile + tablet: vertical rail */}
-      <ol className="flex flex-col gap-0 lg:hidden">
+      <ol className="flex flex-col lg:hidden">
         {nodes.map((node, i) => (
           <li key={node.key}>
             <NodeCard node={node} />
             {i < nodes.length - 1 && (
-              <VerticalConnector
-                from={node}
-                to={nodes[i + 1]}
-                active={node.state === 'done' || node.state === 'active'}
-              />
+              <VerticalConnector from={node} to={nodes[i + 1]} active={node.state !== 'idle'} />
             )}
           </li>
         ))}
@@ -66,130 +58,137 @@ export function RouteRail({ nodes }: { nodes: RouteNode[] }) {
   );
 }
 
-function ownerClasses(owner: RouteNode['owner'], state: LegState) {
-  const dim = state === 'idle';
-
-  if (owner === 'kora') {
-    return {
-      ring: dim ? 'seam' : 'border-amber-core/40',
-      text: dim ? 'text-ink-500' : 'text-amber-glow',
-      glow: dim ? '' : 'shadow-[0_0_28px_-14px_var(--color-amber-core)]',
-      bg: dim ? 'bg-ink-900/40' : 'bg-amber-wash/50',
-    };
-  }
-  if (owner === 'pollar') {
-    return {
-      ring: dim ? 'seam' : 'border-flow-core/40',
-      text: dim ? 'text-ink-500' : 'text-flow-glow',
-      glow: dim ? '' : 'shadow-[0_0_28px_-14px_var(--color-flow-core)]',
-      bg: dim ? 'bg-ink-900/40' : 'bg-flow-wash/50',
-    };
-  }
-  return {
-    ring: dim ? 'seam' : 'seam-strong',
-    text: dim ? 'text-ink-500' : 'text-ink-100',
-    glow: '',
-    bg: dim ? 'bg-ink-900/40' : 'bg-ink-850',
-  };
+/**
+ * A node not yet reached shows as idle regardless of owner. Only once it is
+ * active or done does it resolve into the treatment that says who owns it, so
+ * progress and ownership are legible from the same drawing.
+ */
+function treatment(node: RouteNode): Owner {
+  return node.state === 'idle' ? 'idle' : node.owner;
 }
 
+const OWNER_CLASS: Record<Owner, string> = {
+  ours: 'leg-ours',
+  theirs: 'leg-theirs',
+  simulated: 'leg-simulated',
+  idle: 'leg-idle',
+};
+
 function NodeCard({ node }: { node: RouteNode }) {
-  const s = ownerClasses(node.owner, node.state);
+  const owner = treatment(node);
+  const filled = owner === 'ours';
 
   return (
     <div
-      className={cx(
-        'flex h-full min-w-0 flex-1 flex-col rounded-xl border px-3 py-3 transition-all duration-500',
-        s.ring,
-        s.bg,
-        s.glow,
+      className={cn(
+        'flex h-full min-w-0 flex-1 flex-col rounded-lg px-3.5 py-3 transition-all duration-500',
+        OWNER_CLASS[owner],
       )}
     >
       <div className="flex items-center gap-2">
-        {node.countryCode && <Flag code={node.countryCode} size={15} />}
-        <span className={cx('truncate text-[11px] font-semibold uppercase tracking-wider', s.text)}>
+        {node.countryCode && <Flag code={node.countryCode} size={14} />}
+        <span className="truncate text-[11px] font-semibold uppercase tracking-[0.1em]">
           {node.title}
         </span>
+
         {node.state === 'active' && (
-          <span className={cx('ml-auto h-1.5 w-1.5 shrink-0 rounded-full pulse-soft', s.text.replace('text-', 'bg-'))} />
+          <span
+            className={cn(
+              'pulse-soft ml-auto h-1.5 w-1.5 shrink-0 rounded-full',
+              'bg-ink',
+            )}
+            aria-label="in progress"
+          />
         )}
         {node.state === 'done' && (
-          <svg className={cx('ml-auto h-3.5 w-3.5 shrink-0', s.text)} viewBox="0 0 16 16" fill="none" aria-hidden>
-            <path d="M3 8.5l3.2 3.2L13 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <svg className="ml-auto h-3.5 w-3.5 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <path
+              d="M3 8.5l3.2 3.2L13 5"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         )}
       </div>
 
       {node.value && (
-        <div className={cx('tabular mt-1.5 truncate text-sm font-semibold', node.state === 'idle' ? 'text-ink-600' : 'text-ink-100')}>
-          {node.value}
-        </div>
+        <div className="tabular mt-1.5 truncate text-sm font-semibold">{node.value}</div>
       )}
 
       {node.subtitle && (
-        <div className="mt-0.5 truncate text-[11px] text-ink-500">{node.subtitle}</div>
+        <div
+          className={cn('mt-0.5 truncate text-[11px]', filled ? 'text-ink/60' : 'text-ink-faint')}
+        >
+          {node.subtitle}
+        </div>
       )}
 
       {node.tag && (
-        <div className="mt-2">
-          <Pill tone="warn">{node.tag}</Pill>
+        <div
+          className={cn(
+            'mt-2 text-[10px] font-medium uppercase tracking-[0.1em]',
+            filled ? 'text-ink/70' : 'text-ink-muted',
+          )}
+        >
+          {node.tag}
         </div>
       )}
     </div>
   );
 }
 
-/** The seam. Gradient from one owner's colour to the next. */
+/**
+ * The seam. Solid while the value is still inside KORA, dashed once it enters
+ * a simulated step, so the boundary shows in the line itself and not only in
+ * the blocks either side of it.
+ */
 function Connector({ from, to, active }: { from: RouteNode; to: RouteNode; active: boolean }) {
-  const isHandoff = from.owner !== to.owner && to.owner === 'pollar';
+  const isHandoff = from.owner !== to.owner && to.owner === 'theirs';
+  const dashed = to.owner === 'simulated';
 
   return (
-    <div className="relative h-px w-6 shrink-0 xl:w-8">
-      <svg className="absolute inset-0 h-px w-full overflow-visible" aria-hidden>
-        <defs>
-          <linearGradient id={`grad-${from.key}`} x1="0" x2="1">
-            <stop offset="0%" stopColor={colorFor(from.owner)} stopOpacity={active ? 0.8 : 0.18} />
-            <stop offset="100%" stopColor={colorFor(to.owner)} stopOpacity={active ? 0.8 : 0.18} />
-          </linearGradient>
-        </defs>
-        <line x1="0" y1="0.5" x2="100%" y2="0.5" stroke={`url(#grad-${from.key})`} strokeWidth="1.5" />
-        {active && (
-          <line
-            x1="0"
-            y1="0.5"
-            x2="100%"
-            y2="0.5"
-            stroke={colorFor(to.owner)}
-            strokeWidth="1.5"
-            className="flow-line"
-            opacity="0.9"
-          />
+    <div className="relative h-px w-7 shrink-0 xl:w-9">
+      <div
+        className={cn(
+          'absolute inset-x-0 top-0 border-t',
+          dashed ? 'border-dashed' : 'border-solid',
+          active ? 'border-ink' : 'border-rule',
         )}
-      </svg>
-
+      />
       {isHandoff && (
-        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border border-flow-core/40 bg-ink-950 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-widest text-flow-glow">
-          ⇥
+        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap bg-paper px-1 text-[9px] font-bold text-ink">
+          &#8677;
         </span>
       )}
     </div>
   );
 }
 
-function VerticalConnector({ from, to, active }: { from: RouteNode; to: RouteNode; active: boolean }) {
-  const isHandoff = from.owner !== to.owner && to.owner === 'pollar';
+function VerticalConnector({
+  from,
+  to,
+  active,
+}: {
+  from: RouteNode;
+  to: RouteNode;
+  active: boolean;
+}) {
+  const isHandoff = from.owner !== to.owner && to.owner === 'theirs';
+  const dashed = to.owner === 'simulated';
 
   return (
-    <div className="relative ml-6 h-6 w-px">
+    <div className="relative ml-6 h-7">
       <div
-        className="h-full w-px"
-        style={{
-          background: `linear-gradient(to bottom, ${colorFor(from.owner)}, ${colorFor(to.owner)})`,
-          opacity: active ? 0.75 : 0.18,
-        }}
+        className={cn(
+          'h-full border-l',
+          dashed ? 'border-dashed' : 'border-solid',
+          active ? 'border-ink' : 'border-rule',
+        )}
       />
       {isHandoff && (
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 whitespace-nowrap text-[9px] font-bold uppercase tracking-widest text-flow-glow">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.14em] text-ink">
           hand-off
         </span>
       )}
@@ -197,10 +196,22 @@ function VerticalConnector({ from, to, active }: { from: RouteNode; to: RouteNod
   );
 }
 
-function colorFor(owner: RouteNode['owner']) {
-  return owner === 'kora'
-    ? 'var(--color-amber-core)'
-    : owner === 'pollar'
-      ? 'var(--color-flow-core)'
-      : 'var(--color-ink-500)';
+/** The key to the language, shown beside the rail. */
+export function RouteLegend() {
+  return (
+    <div className="mt-3.5 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-ink-muted">
+      <span className="flex items-center gap-2">
+        <span className="h-3 w-5 rounded-[3px] border-[1.5px] border-ink bg-accent" />
+        KORA built this leg
+      </span>
+      <span className="flex items-center gap-2">
+        <span className="h-3 w-5 rounded-[3px] border-[1.5px] border-ink bg-paper" />
+        Pollar owns this leg
+      </span>
+      <span className="flex items-center gap-2">
+        <span className="h-3 w-5 rounded-[3px] border-[1.5px] border-dashed border-ink-faint bg-paper" />
+        Simulated, and labelled as such
+      </span>
+    </div>
+  );
 }

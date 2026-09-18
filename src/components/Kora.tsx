@@ -411,7 +411,7 @@ function ThesisStrip() {
             <p
               className={cn(
                 'mt-2 text-xs leading-relaxed',
-                item.owner === 'ours' ? 'text-paper/60' : 'text-ink-muted',
+                item.owner === 'ours' ? 'text-ink/70' : 'text-ink-muted',
               )}
             >
               {item.body}
@@ -558,7 +558,7 @@ function PlanStage({
 
             <div className="mt-5 space-y-2">
               <div className="leg-ours flex items-baseline justify-between gap-4 rounded-lg px-4 py-3">
-                <span className="text-xs text-paper/70">Hands off to Pollar as</span>
+                <span className="text-xs text-ink/70">Hands off to Pollar as</span>
                 <Money amount={quote.quote.receiveUsdc} currency={SETTLEMENT_ASSET} />
               </div>
               <div className="leg-simulated flex items-baseline justify-between gap-4 rounded-lg px-4 py-3">
