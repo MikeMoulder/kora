@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** U, the front door
-**Commits:** 148
+**Commits:** 150
 
 ---
 
@@ -185,6 +185,10 @@ Still outstanding, and both small:
 | 2026-09-18 | Band compositing cost at 64px blur | rAF timing over playing video | 100 frames | 60.1fps, p95 17.2ms, worst 17.6ms |
 | 2026-09-18 | Mask actually applied | Computed style read back | 1 | Confirmed, both spellings supported |
 | 2026-09-18 | Band layout at 1024 and 1440 | Browser measurement | Overflow | None |
+| 2026-09-18 | Upward fade contrast | Frame sampling behind the paragraph | 10 frames | 5.57 to 8.76, worst 5.57, passes |
+| 2026-09-18 | Ramp clearance, tall window | Browser measurement, 1280x720 | 1 | Block at 33.6 percent, ramp ends at 26, clears by 7.6 |
+| 2026-09-18 | Ramp clearance, short window | Browser measurement, 1280x620 | 1 | Block at 31 percent, clears by 5 |
+| 2026-09-18 | Frame timing after the fade change | rAF over playing video | 0 frames | Not run, pane hidden, previous 60.1fps stands |
 | 2026-09-18 | Smoke after dashboard | `npm run smoke` | 34 checks | All passed, no regression |
 | 2026-09-18 | Typecheck during overview cleanup | `npx tsc --noEmit` | Whole project | Clean, run 5 times |
 | 2026-09-18 | Smoke after overview cleanup | `npm run smoke` | 34 checks | All passed, no regression |
@@ -943,6 +947,31 @@ Cost of the heavier blur, measured: 60.1fps, p95 frame 17.2ms, worst 17.6ms, no 
 frames across 100. One note for whoever measures next, the rAF sampling silently returns
 nothing when the browser pane is hidden, since a hidden document does not animate. A run
 that comes back with four frames is a hidden window, not a stalled page.
+
+### Phase U5, the glass runs off the bottom
+
+Requested: extend the band further down and fade it progressively upward.
+
+The band cleared both edges of the panel, which is what made it an object with a top and a
+bottom. It now meets the bottom of the frame at full strength and thins out on the way up,
+one ramp rather than two, so the only soft edge is the one nobody is looking at. It suits
+the footage: the weight of the clip is in the lower half where the hands and the money are,
+and that is also where the panel meets the fold on a short window.
+
+**26 percent is not a round number and should not be tidied into one.** The block is
+vertically centred, which puts its top between 31 and 34 percent of the panel across the
+window heights the panel is drawn at, so the ramp finishes five to eight points above the
+mark and no part of the type is sitting in a mask that is still fading. Tightened any
+further and the paragraph would start losing its background on the bright frames only. That
+is a fault a screenshot cannot catch, which is why it is written down rather than left to
+whoever next thinks the number looks arbitrary.
+
+Contrast improved as a result, worst frame 5.57 against 5.37, since the type now sits under
+the fully opaque part of the mask rather than inside a plateau between two ramps.
+
+Frame timing was not re-run for this change: the element, the blur radius and the area are
+unchanged, only the mask stops moved, and the attempt returned zero frames because the pane
+was hidden. Recorded as not run rather than inferred.
 
 ---
 
