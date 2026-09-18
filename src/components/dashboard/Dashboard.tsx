@@ -277,7 +277,18 @@ function BalanceCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 divide-x divide-rule">
+      <div className="relative grid grid-cols-2">
+        {/*
+          * Drawn rather than left to `divide-x`, which can only run the full
+          * height of the row. Inset a tenth top and bottom so the rule
+          * separates the two actions without reaching for the edges of the
+          * card and turning into structure.
+          */}
+        <span
+          aria-hidden
+          className="absolute left-1/2 top-[10%] h-[80%] w-px -translate-x-1/2 bg-rule"
+        />
+
         <Action
           icon={<ArrowUpRight className="h-[15px] w-[15px]" strokeWidth={2} />}
           label="Pay"
