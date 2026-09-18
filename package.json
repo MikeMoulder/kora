@@ -8,18 +8,22 @@
     "start": "next start",
     "smoke": "tsx scripts/smoke.ts",
     "typecheck": "tsc --noEmit",
-    "setup:settlement": "tsx scripts/setup-settlement.ts"
+    "setup:settlement": "tsx scripts/setup-settlement.ts",
+    "prepare:logo": "tsx scripts/prepare-logo.ts"
   },
   "dependencies": {
     "@google/genai": "^2.23.0",
     "@pollar/core": "^0.11.3",
     "@pollar/react": "^0.11.3",
     "@stellar/stellar-sdk": "^17.1.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.47.0",
     "motion": "^13.4.0",
     "next": "16.3.5",
     "qrcode": "^1.5.4",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
