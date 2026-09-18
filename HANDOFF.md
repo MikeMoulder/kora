@@ -4,37 +4,38 @@ Living progress tracker. Updated at the end of every task.
 
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
-**Current phase:** N, interface revamp
-**Commits:** 134
+**Current phase:** U, the front door
+**Commits:** 141
 
 ---
 
 ## Next task
 
-**Drop the seven portraits into `public/avatars/`.** Nothing else is blocked on it and the
-interface does not break without it, but it is the only outstanding piece of this round.
+**Deploy.** This is the only thing standing between the work and a judge. Production is
+behind the local build by the /send retirement, the payments work, the interface revamp,
+the portraits, the icon set and this round's sign in gate. Everything else on this list is
+smaller than it.
 
-One square image per file, 96px or larger. They are drawn at 44px and below:
+Two things to check the moment it is up, because both are new and neither is exercised by
+the build:
 
-```
-public/avatars/ada-okafor.png       the account holder
-public/avatars/carlos-mamani.png    Carlos Mamani
-public/avatars/maria-quispe.png     Maria Quispe
-public/avatars/diego-rojas.png      Diego Rojas
-public/avatars/valeria-ticona.png   Valeria Ticona
-public/avatars/ana-flores.png       Ana Flores
-public/avatars/bruno-almeida.png    Bruno Almeida
-```
+- `/dashboard` with no cookie has to answer a redirect to `/` on the deployed host, not
+  just on localhost. The proxy runs at the edge on Vercel rather than inside the Node
+  server, which is a different execution path to the one tested here.
+- `/signin` has to answer 307 to `/`. It is configured in `next.config.ts` rather than in
+  code, so a stale build would drop it silently.
 
-No code change is needed. `Avatar` in `components/dashboard/parts.tsx` paints the monogram
-disc first and lays the portrait over it, so a file that is not there fails its request
-once and the disc takes the space. Businesses keep the monogram by design; a logo is not a
-portrait, and the distinction is how the list sorts people from companies by eye.
+Also add the deployed URL to Pollar under Build to Domains. Domains has no wildcards, so
+the preview URL and the production URL are two separate entries, and an SDK call from a
+host that is not listed returns 403 `ORIGIN_NOT_ALLOWED` rather than anything that reads
+like a configuration problem.
 
-**Then: README and the submission write-up.** Still the last real piece of work.
+**Then: the submission write-up.** The README now covers the front door and the run
+instructions. `SUBMISSION.md` has not been re-read since the dashboard, the payments work
+and the gate landed.
 
-The corridor runs end to end for real. The strongest artefact is the Stellar transaction,
-and it should be the first thing a judge sees:
+The strongest artefact is still the Stellar transaction, and it should be the first thing a
+judge sees:
 
 ```
 tx      2c44ae641c27913d7e7fdb19ecdcf8ac6273e6ca1ba67dbe830b1eb767530508
@@ -48,13 +49,19 @@ to      GAXMTAOXFC4CZFM3BDA52FC3Q7NHN47XJFXZV7YDQ7TCZJIPQVT63FDA   Carlos Mamani
 recipient wallet 0 to 14.8804771, balance 4,915,650 to 4,895,650. All three confirmed on
 Horizon.
 
-Also outstanding: the local build is ahead of production by the /send retirement, the
-payments work and this round of interface work. Deploy before submitting.
+**Done since this list was last written:** the seven portraits are in `public/avatars/` and
+drawing, and sign in is now the front door rather than an orphaned route.
 
-Housekeeping, unactioned on purpose: `AGENTS.md` asks for every `.md` except the README and
-its dependencies to be gitignored. Ten are tracked today, including `SUBMISSION.md` and this
-file. Untracking them is not something to do quietly the day of a deadline, so it is flagged
-rather than done.
+**Smaller, and honest about being smaller:**
+
+- The README `## Layout` block is stale. It lists `src/app/corridors/`, `RouteRail` and
+  `Passport`, none of which exist any more. Not touched in this round because rewriting a
+  README section is a different job from documenting a route change, and doing it quietly
+  inside an unrelated commit is how a document stops being trusted.
+- Housekeeping, unactioned on purpose: `AGENTS.md` asks for every `.md` except the README
+  and its dependencies to be gitignored. Ten are tracked today, including `SUBMISSION.md`
+  and this file. Untracking them is not something to do quietly the day of a deadline, so
+  it is flagged rather than done.
 
 ---
 
@@ -148,6 +155,21 @@ Still outstanding, and both small:
 | 2026-09-18 | Beneficiaries panel | Browser | Search, list, pay | Working |
 | 2026-09-18 | Dashboard to engine handoff | `/send?intent=` | 1 full run | Auto-parsed, quoted live at 250,000 NGN to 186.48 USDC |
 | 2026-09-18 | Production build with dashboard | `npm run build` | 14 routes | Clean |
+| 2026-09-18 | Typecheck during the front door work | `npx tsc --noEmit` | Whole project | Clean, run 4 times |
+| 2026-09-18 | Production build, routes swapped | `npm run build` | 23 routes | Clean, / and /dashboard prerendered |
+| 2026-09-18 | Production build, proxy added | `npm run build` | 23 routes + Proxy | Clean, Proxy listed in the route table |
+| 2026-09-18 | Gate, no session | Browser, GET /dashboard | 1 | Redirected to /, sign in rendered |
+| 2026-09-18 | Gate, signed in | Browser, GET / | 1 | Redirected to /dashboard |
+| 2026-09-18 | Old route redirect | Browser, GET /signin | 1 | 307 to /, then on to /dashboard |
+| 2026-09-18 | Sign in submit | Browser, form to dashboard | 1 full run | Cookie written, landed on /dashboard |
+| 2026-09-18 | Sign out | Browser, header control | 1 full run | Cookie cleared, landed on / |
+| 2026-09-18 | Back after sign out, before the guard | Browser history | 1 | Failed, dashboard restored from the client router cache |
+| 2026-09-18 | Back after sign out, after the guard | Browser history | 1 | Passed, the sign in form is what remains |
+| 2026-09-18 | Guard on pageshow | Browser, cookie cleared then event fired | 1 | Redirected to / |
+| 2026-09-18 | Server gate behind a stale client | Browser fetch of /dashboard | 1 | opaqueredirect, server still refusing |
+| 2026-09-18 | Console audit, gate | Browser console | Errors | None |
+| 2026-09-18 | Smoke regression after the gate | `npm run smoke` | 34 checks | All passed |
+| 2026-09-18 | Final production build | `npm run build` | 23 routes + Proxy | Clean |
 | 2026-09-18 | Smoke after dashboard | `npm run smoke` | 34 checks | All passed, no regression |
 | 2026-09-18 | Typecheck during overview cleanup | `npx tsc --noEmit` | Whole project | Clean, run 5 times |
 | 2026-09-18 | Smoke after overview cleanup | `npm run smoke` | 34 checks | All passed, no regression |
@@ -748,6 +770,69 @@ is accurate rather than a hedge.
 A real Stellar testnet settlement account, created and funded by a script in the repo,
 with a USDC trustline open:
 `GAEHDX7IXJHG2UUCCUES63C7WBLPXJX6IHTA6TGENHDJBSZ65AB7FWQE`
+
+### Phase U, sign in became the front door
+
+The brief was small and the hole underneath it was not. Sign in already existed, at
+`/signin`, and nothing in the app linked to it. The dashboard answered `/`, so every visitor
+landed inside the account without passing the screen built for arriving, and the sign in
+work from the earlier phase was effectively dead code with a nice video on it.
+
+**The swap.** `/` is sign in. The dashboard is `/dashboard`. `/signin` answers a 307 to `/`
+so a bookmark or a line in a demo script does not produce a 404 in front of an audience,
+temporary rather than permanent because a 308 is cached by browsers forever and a week old
+project should not commit its routes to anybody's cache.
+
+Three links were pointing at the old shape. The rail logo went to `/`, which had become the
+way out of the account rather than the way home. The brand panel carried a back button to
+`/`, which had become the page it was drawn on. "Request access" linked to `/signin` from
+`/signin`, which was circular before any of this.
+
+**The gate runs on the server.** `src/proxy.ts`, which is what Next 16 calls middleware
+since the rename. No session and the dashboard sends you to sign in; a session and sign in
+sends you to the dashboard. The position is the point: a client side guard has to render
+the account first and navigate away afterwards, which shows somebody a balance they never
+signed in to see for as long as it takes React to mount.
+
+The matcher names `/` and `/dashboard/:path*` rather than using the documented catch all
+with a negative pattern. Cheaper, and it cannot swallow an asset or an API route by
+accident. The Flutterwave webhook in particular arrives with no cookie and must never be
+answered with a redirect to a login form.
+
+**The session moved from sessionStorage to a cookie**, because the proxy runs before any
+client code exists and sessionStorage is invisible there. The cookie name and its parser
+live in `src/lib/demo-session.ts`, which carries no client directive and can therefore be
+imported by both the form and the proxy. One definition of the format, two readers.
+"Remember me" now decides the lifetime, thirty days against the tab, rather than being a
+control that did nothing.
+
+**None of this is a security boundary and the code says so three times.** The cookie is
+unsigned, not HttpOnly, and any visitor could write one from the console. It stops somebody
+skipping the front door, not somebody determined to get past it. The protection this
+project actually needs is on the routes that move money, and those authenticate against
+Pollar and the Flutterwave webhook signature rather than against anything here.
+
+**A door that only opens inwards is not a door**, so the dashboard header carries a sign
+out beside the notifications bell. Clearing the cookie is the whole of signing out, because
+the cookie is the whole of the session.
+
+**Then Back broke it.** Signing out and pressing Back put the account back on screen with
+no cookie in the jar. The client router had restored the dashboard from its own cache
+without asking the server, so the gate was never consulted, and the browser's back forward
+cache does the same thing one layer lower. Found by pressing the button, not by reading the
+code.
+
+`DemoSessionGuard` wraps the dashboard and re-reads the cookie on mount and on `pageshow`.
+Two events because they cover different cases: mount catches a client side navigation where
+React rebuilds the page, `pageshow` catches a document revived from the back forward cache
+where nothing remounts at all. It is optimistic on purpose, drawing the account and
+withdrawing it rather than holding every honest load behind an effect to catch a case that
+only happens on the way out.
+
+**One false alarm worth recording.** The first run after the fix still showed the dashboard
+on Back, which looked like the fix not working. It was a stale dev compile. Re-running the
+whole sequence against recompiled output passed. The lesson is narrow and practical: in dev,
+confirm the code under test is the code being served before concluding anything about it.
 
 ---
 

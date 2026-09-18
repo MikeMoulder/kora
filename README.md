@@ -137,6 +137,12 @@ NEXT_PUBLIC_POLLAR_PUBLISHABLE_KEY=pub_testnet_…
 npm run dev
 ```
 
+The app opens on sign in at `/` and the dashboard lives at `/dashboard`. There is no
+account system behind that screen: any credentials are accepted, the fields arrive
+pre-filled, and the session is an unsigned cookie that `src/proxy.ts` checks before
+rendering the account. It is a front door, not a lock, and the code says so in the
+places somebody might mistake it for one.
+
 Four dashboard settings are not optional, and each fails in its own way if you skip it:
 
 | Dashboard | Setting | Skip it and… |
