@@ -12,7 +12,7 @@ import {
   Star,
 } from 'lucide-react';
 import { cn, copyText } from '@/lib/utils';
-import { Monogram } from './parts';
+import { Avatar } from './parts';
 import { Flag } from '../Flag';
 import { Spinner } from '../ui/primitives';
 import {
@@ -930,7 +930,7 @@ export function BeneficiaryPanel({ onCompose }: { onCompose?: (draft: SendDraft)
             className="group rounded-xl border border-rule p-3 transition-colors hover:border-ink"
           >
             <div className="flex items-center gap-3">
-              <Monogram name={b.name} size={38} />
+              <Avatar id={b.avatarId} name={b.name} size={38} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <span className="truncate text-sm font-medium">{b.name}</span>
@@ -1000,7 +1000,7 @@ function BeneficiaryPicker({
             onClick={() => onPick(b)}
             className="flex w-full items-center gap-3 rounded-xl border border-rule p-3 text-left transition-colors hover:border-ink"
           >
-            <Monogram name={b.name} size={36} />
+            <Avatar id={b.avatarId} name={b.name} size={36} />
             <div className="min-w-0">
               <div className="truncate text-sm font-medium">{b.name}</div>
               <div className="truncate text-[11px] text-ink-faint">{b.account}</div>

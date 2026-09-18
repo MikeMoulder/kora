@@ -18,7 +18,7 @@ import {
   type RatesPayload,
   type SendDraft,
 } from './panels';
-import { CardLabel, DirectionMark, IconButton, Monogram } from './parts';
+import { Avatar, CardLabel, DirectionMark, IconButton } from './parts';
 import { Flag } from '../Flag';
 import { ACCOUNT, formatNaira, relativeDay } from '@/lib/demo-data';
 import type { ActivityItem, ActivityPayload } from '@/lib/account/activity';
@@ -161,7 +161,12 @@ function Header() {
             aria-hidden
           />
         </div>
-        <Monogram name={ACCOUNT.fullName} size={40} className="ml-1 lg:hidden" />
+        <Avatar
+          id={ACCOUNT.avatarId}
+          name={ACCOUNT.fullName}
+          size={40}
+          className="ml-1 lg:hidden"
+        />
       </div>
     </header>
   );
@@ -452,7 +457,7 @@ function TransactionRow({ tx }: { tx: ActivityItem }) {
 
   return (
     <li className="flex items-center gap-3 rounded-xl border border-rule bg-paper px-4 py-3 shadow-[0_1px_2px_rgba(15,17,16,0.03)] transition-colors hover:border-ink-ghost">
-      <Monogram name={tx.party} kind={tx.kind} size={38} />
+      <Avatar id={tx.avatarId} name={tx.party} kind={tx.kind} size={38} />
 
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] font-medium">{tx.party}</div>

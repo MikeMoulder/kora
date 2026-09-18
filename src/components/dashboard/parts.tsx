@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { initialsOf } from '@/lib/demo-data';
 
@@ -40,6 +41,62 @@ export function Monogram({
       )}
     >
       {initialsOf(name)}
+    </span>
+  );
+}
+
+/**
+ * A counterparty's portrait, with the monogram behind it.
+ *
+ * Two facts the interface has to hold at once: some counterparties have a
+ * picture and some do not, and the ones that do not are mostly businesses
+ * rather than missing people. So this is not a loader with a placeholder, it
+ * is a portrait *or* a monogram, and both are finished states.
+ *
+ * The fallback is on `onError` rather than on a check that the file exists,
+ * because a client component cannot ask the filesystem anything. A portrait
+ * that has not been supplied yet fails its request once and the monogram
+ * takes the space, with no layout shift: the disc is the same size either
+ * way and is already painted underneath.
+ */
+export function Avatar({
+  id,
+  name,
+  kind = 'person',
+  size = 44,
+  className,
+}: {
+  /** File stem in `public/avatars`. Null draws the monogram directly. */
+  id?: string | null;
+  name: string;
+  kind?: 'person' | 'business';
+  size?: number;
+  className?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const usePortrait = Boolean(id) && !failed;
+
+  return (
+    <span
+      style={{ width: size, height: size }}
+      className={cn('relative inline-block shrink-0', className)}
+    >
+      <Monogram name={name} kind={kind} size={size} />
+
+      {usePortrait && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`/avatars/${id}.png`}
+          alt=""
+          aria-hidden
+          width={size}
+          height={size}
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed(true)}
+          className="absolute inset-0 h-full w-full rounded-full object-cover"
+        />
+      )}
     </span>
   );
 }

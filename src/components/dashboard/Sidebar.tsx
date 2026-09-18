@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { LayoutGrid, Send, Settings, Sparkles, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Monogram } from './parts';
+import { Avatar } from './parts';
 import { ACCOUNT } from '@/lib/demo-data';
 
 /**
@@ -95,7 +95,7 @@ export function Sidebar({
         />
       </nav>
 
-      <Monogram name={ACCOUNT.fullName} size={36} className="mt-4" />
+      <Avatar id={ACCOUNT.avatarId} name={ACCOUNT.fullName} size={36} className="mt-4" />
     </aside>
   );
 }

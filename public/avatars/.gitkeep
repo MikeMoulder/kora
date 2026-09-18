@@ -1,0 +1,15 @@
+Portraits for the account holder and the beneficiary book.
+
+One square image per file, named for the person. Anything from 96px up is
+enough; they are drawn at 44px and below.
+
+  ada-okafor.png       the account holder
+  carlos-mamani.png    Carlos Mamani
+  maria-quispe.png     Maria Quispe
+  diego-rojas.png      Diego Rojas
+  valeria-ticona.png   Valeria Ticona
+  ana-flores.png       Ana Flores
+  bruno-almeida.png    Bruno Almeida
+
+A missing file is not an error. The Avatar component falls back to the
+monogram disc, which is what every business counterparty gets anyway.
