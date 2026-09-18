@@ -93,9 +93,6 @@ function Header() {
         <h1 className="truncate text-[26px] font-semibold tracking-[-0.025em] sm:text-[30px]">
           Hi, {ACCOUNT.firstName}
         </h1>
-        <p className="mt-0.5 text-xs text-ink-faint">
-          Paying contractors across Latin America from Lagos
-        </p>
       </div>
 
       <div className="flex items-center gap-2">
@@ -337,11 +334,6 @@ function Transactions() {
           <TransactionRow key={tx.id} tx={tx} />
         ))}
       </ul>
-
-      <p className="mt-4 border-t border-rule pt-3 text-[10px] leading-relaxed text-ink-faint">
-        Sample account data, so the dashboard has something to show. The corridor engine,
-        the rates and the payment flow behind Review are real.
-      </p>
     </div>
   );
 }
