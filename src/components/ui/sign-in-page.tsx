@@ -31,14 +31,21 @@ import { signInDemo, DEMO_CREDENTIALS } from '@/lib/demo-auth';
 const PANEL_VIDEO = '/panel.mp4';
 
 /**
- * Where the band of glass starts and stops being glass.
+ * Where the glass starts being glass.
  *
- * Fully opaque between 18 and 86 percent of the panel's height, ramping to
- * nothing at both ends. The numbers are the band drawn on the mockup; the
- * length of the ramps is what keeps it from reading as a bar.
+ * One ramp, not two. It reaches the bottom of the panel at full strength and
+ * thins out on the way up, so the only soft edge is the one nobody is looking
+ * at: the footage at the top of the frame stays sharp and the blur arrives
+ * under the words without ever drawing a line.
+ *
+ * Solid from 26 percent down. The block is vertically centred, which puts it
+ * between 34 and 66 percent of the panel at every height the panel is drawn
+ * at, so the ramp finishes eight points of height above the mark and the type
+ * never sits in the part of the mask that is still fading. Tuck that number
+ * tighter and the paragraph starts losing its background halfway through the
+ * clip, which is the kind of fault that only shows up on the bright frames.
  */
-const BAND_MASK =
-  'linear-gradient(to bottom, transparent 0%, #000 18%, #000 86%, transparent 100%)';
+const BAND_MASK = 'linear-gradient(to bottom, transparent 0%, #000 26%, #000 100%)';
 
 export function SignInPage() {
   const router = useRouter();
@@ -322,10 +329,16 @@ function BrandPanel() {
         smear. A mask takes the whole layer out together, tint and blur at the
         same rate, so the footage simply comes back into focus.
 
-        Long ramps on purpose. Eighteen percent of the panel's height at the
-        top and fourteen at the bottom, against a two or three percent feather
-        that would still register as a line. Nothing in the composition should
-        have an edge you can point at.
+        It runs off the bottom of the panel rather than fading out there. A
+        band floating clear of both edges is an object with a top and a bottom;
+        one that meets the frame and dissolves upward is a condition of the
+        image. The second is what the footage wants, since the weight of the
+        clip is in the lower half where the hands and the money are, and that
+        is also where the panel meets the fold on a short window.
+
+        A quarter of the panel's height to make the turn, against a two or
+        three percent feather that would still register as a line. Nothing in
+        the composition should have an edge you can point at.
 
         Both spellings of the property. Safari still wants the prefix, and an
         unprefixed mask alone means no mask at all there, which is a hard edged
