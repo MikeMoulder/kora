@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { usePollar } from '@pollar/react';
 import { ArrowUpRight } from 'lucide-react';
 import { Flag } from './Flag';
@@ -8,6 +8,7 @@ import { Button, Money, Note, OwnerTag, Panel, Row, SectionLabel, cn } from './u
 import type { IntentResponse, QuoteResponse } from '@/lib/client';
 import type { KoraFundingRequest } from '@/lib/corridor/types';
 import {
+  HORIZON_URL,
   SETTLEMENT_ADDRESS,
   SETTLEMENT_ASSET,
   STELLAR_NETWORK,
@@ -206,6 +207,8 @@ function HandoffLive({
             </span>
           </Row>
 
+          <GasCheck address={wallet?.address ?? null} />
+
           <Button variant="outline" className="mt-4 w-full" onClick={send} busy={busy}>
             {busy
               ? 'Submitting to Stellar'
@@ -327,6 +330,107 @@ function Passport({
         payout is the one step we simulate. It is Pollar&rsquo;s mainnet leg, and the brief
         said not to build it.
       </Note>
+    </div>
+  );
+}
+
+/**
+ * Whether the signed-in wallet can pay a network fee.
+ *
+ * Pollar sponsors the base reserve and the trustline, so a new wallet exists
+ * and can hold USDC while owning no XLM at all. It still cannot pay a fee, and
+ * the first transfer fails with "insufficient XLM to cover the network fee" —
+ * at the last step, after everything else has worked.
+ *
+ * Catching it before the button is pressed turns a dead end into a sentence
+ * and, on testnet, a fix. The real fix is a starting balance under Treasury,
+ * Account Funding, which seeds every wallet at creation; this is for the ones
+ * created before that was set.
+ */
+function GasCheck({ address }: { address: string | null }) {
+  const [balance, setBalance] = useState<number | null>(null);
+  const [funding, setFunding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const check = useCallback(async () => {
+    if (!address) return;
+
+    try {
+      const account = await fetch(`${HORIZON_URL}/accounts/${address}`, {
+        cache: 'no-store',
+      }).then((r) => (r.ok ? r.json() : null));
+
+      const native = (account?.balances ?? []).find(
+        (entry: { asset_type?: string }) => entry.asset_type === 'native',
+      );
+
+      setBalance(native ? Number(native.balance) : 0);
+    } catch {
+      // Horizon being unreachable is not a reason to block the attempt.
+      setBalance(null);
+    }
+  }, [address]);
+
+  useEffect(() => {
+    check();
+  }, [check]);
+
+  const topUp = useCallback(async () => {
+    if (!address) return;
+
+    setFunding(true);
+    setError(null);
+
+    try {
+      const body = await fetch('/api/pollar/faucet', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ address }),
+      }).then((r) => r.json());
+
+      if (!body.ok) throw new Error(body.error ?? 'The faucet declined.');
+
+      setBalance(Number(body.data.balance ?? 0));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'The faucet declined.');
+    } finally {
+      setFunding(false);
+    }
+  }, [address]);
+
+  // Enough for a fee many times over. Below this the transfer will fail.
+  if (balance === null || balance >= 1) return null;
+
+  return (
+    <div className="leg-simulated mt-4 rounded-lg px-4 py-3">
+      <p className="text-xs leading-relaxed">
+        This wallet holds no XLM, so it cannot pay the Stellar network fee. Pollar sponsored
+        its reserve and its trustline, but not the fee.
+      </p>
+
+      {STELLAR_NETWORK === 'testnet' ? (
+        <>
+          <Button
+            variant="outline"
+            className="mt-3 w-full"
+            onClick={topUp}
+            busy={funding}
+          >
+            {funding ? 'Asking Friendbot' : 'Fund it from the testnet faucet'}
+          </Button>
+          <p className="mt-2 text-[10px] leading-relaxed text-ink-muted">
+            Testnet XLM, which has no value. The lasting fix is a starting balance under
+            Treasury, Account Funding, which seeds every wallet at creation.
+          </p>
+        </>
+      ) : (
+        <p className="mt-2 text-[10px] leading-relaxed text-ink-muted">
+          Set a starting balance under Treasury, Account Funding, or turn on fee
+          sponsorship.
+        </p>
+      )}
+
+      {error && <p className="mt-2 text-[11px]">{error}</p>}
     </div>
   );
 }
