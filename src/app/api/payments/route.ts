@@ -4,6 +4,7 @@ import { makeReference } from '@/lib/corridor/adapters/shared';
 import { quote as quoteCorridor } from '@/lib/corridor/engine';
 import { registerUserWithWallet } from '@/lib/pollar/server';
 import { hasTreasury, payBeneficiary, treasuryBalance } from '@/lib/stellar/treasury';
+import { simulateBolivianPayout } from '@/lib/pollar/offramp';
 import { SETTLEMENT_ASSET, explorerTxUrl } from '@/lib/pollar/config';
 import { fail, ok, readJson } from '@/lib/api';
 
@@ -22,6 +23,13 @@ export const dynamic = 'force-dynamic';
  *   4. provision    a Pollar wallet for the beneficiary, server side
  *   5. deliver      KORA's treasury pays that wallet in USDC
  *   6. reverse      if step 5 failed, put the naira back
+ *   7. quote out    what that USDC is worth in bolivianos, simulated
+ *
+ * Step 7 is the only one that does not execute, and the response says so in
+ * the field name. Pollar scopes `/ramps` to the end user because the off-ramp
+ * spends the beneficiary's own wallet, and its Bolivian anchor is mainnet
+ * only. Both are recorded in `payout.blocked` with a live probe attached,
+ * rather than asserted in a comment.
  *
  * Debiting before sending is deliberate. The other order lets two requests
  * both pass the balance check and both send, and an overdrawn account is a
@@ -44,6 +52,25 @@ interface SendBody {
   account?: string;
   amount?: number;
   note?: string;
+}
+
+/**
+ * The origin this request arrived on.
+ *
+ * Passed through to the ramp probe, which Pollar checks against the app's
+ * allowed origins before it checks anything else. Taken from the request
+ * rather than from a constant for the same reason the readiness probe does
+ * it: a guess that happens to be wrong turns a meaningful 401 into a
+ * meaningless 403.
+ */
+function callerOrigin(request: Request): string {
+  const origin = request.headers.get('origin');
+  if (origin) return origin;
+
+  const host = request.headers.get('host') ?? 'localhost:3000';
+  const proto =
+    request.headers.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
+  return `${proto}://${host}`;
 }
 
 /**
@@ -143,12 +170,29 @@ export async function POST(request: Request) {
     const destination = provisioned.content.walletAddress;
 
     // ── 5. Deliver ────────────────────────────────────────────────────────
-    const payout = await payBeneficiary(destination, quote.receiveUsdc, reference);
+    const delivery = await payBeneficiary(destination, quote.receiveUsdc, reference);
 
-    if (!payout.ok) {
-      await reverse(reference, amount, payout.message);
-      throw new Error(`${payout.message} The naira has been put back.`);
+    if (!delivery.ok) {
+      await reverse(reference, amount, delivery.message);
+      throw new Error(`${delivery.message} The naira has been put back.`);
     }
+
+    /*
+     * The last mile, priced but not executed.
+     *
+     * Computed after delivery rather than alongside the quote, because the
+     * boliviano figure should describe USDC that actually arrived. Quoting it
+     * up front would have printed a payout for a transfer that might still
+     * have been reversed two steps later.
+     */
+    const payout = await simulateBolivianPayout({
+      usdc: quote.receiveUsdc,
+      asset: SETTLEMENT_ASSET,
+      recipientName: name,
+      wallet: destination,
+      account: body.account?.trim() || undefined,
+      origin: callerOrigin(request),
+    });
 
     return ok({
       reference,
@@ -164,9 +208,10 @@ export async function POST(request: Request) {
       delivered: {
         amount: quote.receiveUsdc,
         asset: SETTLEMENT_ASSET,
-        hash: payout.hash,
-        explorer: explorerTxUrl(payout.hash),
+        hash: delivery.hash,
+        explorer: explorerTxUrl(delivery.hash),
       },
+      payout,
       quote,
       balanceAfter: balance.balance - amount,
     });

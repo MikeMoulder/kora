@@ -23,6 +23,7 @@ import {
   type Beneficiary,
 } from '@/lib/demo-data';
 import type { ActivityPayload } from '@/lib/account/activity';
+import type { SimulatedPayout } from '@/lib/pollar/offramp';
 
 // ── Rates ─────────────────────────────────────────────────────────────────
 
@@ -195,6 +196,8 @@ interface SentPayment {
   recipient: { name: string; countryName: string; wallet: string };
   sent: { amount: number; currency: string };
   delivered: { amount: number; asset: string; hash: string; explorer: string };
+  /** The last mile, priced but not executed. Always present, always simulated. */
+  payout: SimulatedPayout;
 }
 
 export function SendPanel({
@@ -365,16 +368,42 @@ export function SendPanel({
           <Line label="To">{sent.recipient.name}</Line>
         </dl>
 
-        <div className="mt-4 rounded-xl border border-rule p-3">
-          <div className="text-[10px] uppercase tracking-[0.12em] text-ink-faint">
-            {sent.recipient.name}&rsquo;s Pollar wallet
-          </div>
-          <div className="mt-1 break-all font-mono text-[10px] text-ink-soft">
-            {sent.recipient.wallet}
-          </div>
-          <p className="mt-2 text-[10px] leading-relaxed text-ink-faint">
-            Created by KORA through Pollar. They never signed up for anything.
-          </p>
+        {/*
+          * The route, as three legs with three different owners.
+          *
+          * This is the one screen where the ownership language has to do real
+          * work, because a judge reading it has to be able to tell which part
+          * of the corridor we built, which part Pollar owns, and which part
+          * has not run. Fill and weight carry it: solid is ours, hairline is
+          * Pollar's, dashed has not happened.
+          */}
+        <div className="mt-5 space-y-2">
+          <Leg
+            owner="ours"
+            label={`Naira debited · ${ACCOUNT.receiving.rail}`}
+            value={formatNaira(sent.sent.amount)}
+            note="KORA's rail, in Nigeria. Real money off a real ledger."
+          />
+
+          <Leg
+            owner="theirs"
+            label={`${sent.delivered.asset} delivered · Pollar wallet`}
+            value={`${sent.delivered.amount.toFixed(7)} ${sent.delivered.asset}`}
+            note={`Non-custodial, provisioned by Pollar for ${sent.recipient.name}, who never signed up for anything.`}
+          >
+            <div className="mt-1.5 break-all font-mono text-[9.5px] text-ink-soft">
+              {sent.recipient.wallet}
+            </div>
+          </Leg>
+
+          <Leg
+            owner="simulated"
+            label={`Bolivianos · ${sent.payout.anchor.provider} ${sent.payout.anchor.rail}`}
+            value={`≈ ${sent.payout.payout.amount.toLocaleString()} ${sent.payout.payout.currency}`}
+            note="Not executed. This is the beneficiary's own off-ramp to run."
+          >
+            <PayoutBlockers payout={sent.payout} />
+          </Leg>
         </div>
 
         <a
@@ -609,6 +638,99 @@ interface KoraQuoteShape {
   receiveUsdc: number;
   /** The engine's own arithmetic. Rendered, never recomputed. */
   breakdown: { label: string; amount: number; currency: string; note?: string }[];
+}
+
+/**
+ * One leg of the route.
+ *
+ * The three `leg-*` classes in globals.css carry ownership, and this is the
+ * component that applies them so no screen restates the rule. Solid fill is
+ * the leg KORA built, a hairline outline is the leg Pollar owns, a dashed
+ * outline has not run. Take the colour away and the three are still distinct,
+ * which is the whole reason the language is fill and weight rather than hue.
+ */
+function Leg({
+  owner,
+  label,
+  value,
+  note,
+  children,
+}: {
+  owner: 'ours' | 'theirs' | 'simulated';
+  label: string;
+  value: string;
+  note: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        'rounded-xl p-3',
+        owner === 'ours' && 'leg-ours',
+        owner === 'theirs' && 'leg-theirs',
+        owner === 'simulated' && 'leg-simulated',
+      )}
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-[10px] uppercase tracking-[0.1em] opacity-70">{label}</span>
+        <span className="tabular shrink-0 text-[12px] font-semibold">{value}</span>
+      </div>
+      <p className="mt-1.5 text-[10px] leading-relaxed opacity-70">{note}</p>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Why the boliviano leg stops, with the evidence.
+ *
+ * The probe is the part that matters. Anyone can write "this would need the
+ * user's session" in a comment; this shows the status and the code Pollar
+ * actually answered with, on this run, a moment ago. A refusal you can read
+ * is worth more than a claim you have to take on trust.
+ */
+function PayoutBlockers({ payout }: { payout: SimulatedPayout }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="mt-2.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="press text-[10px] font-medium uppercase tracking-[0.1em] underline-offset-4 hover:underline"
+      >
+        {open ? 'Hide why' : 'Why not'}
+      </button>
+
+      {open && (
+        <div className="rise mt-2 space-y-2">
+          {payout.blocked.reasons.map((reason) => (
+            <p key={reason} className="text-[10px] leading-relaxed opacity-80">
+              {reason}
+            </p>
+          ))}
+
+          {payout.blocked.probe && (
+            <div className="rounded-lg border border-dashed border-ink-ghost p-2">
+              <div className="text-[9px] uppercase tracking-[0.1em] opacity-60">
+                Asked, just now
+              </div>
+              <div className="mt-1 break-all font-mono text-[9.5px]">
+                GET {payout.blocked.probe.endpoint}
+              </div>
+              <div className="mt-1 font-mono text-[9.5px] font-semibold">
+                {payout.blocked.probe.status} {payout.blocked.probe.code}
+              </div>
+            </div>
+          )}
+
+          <div className="text-[9px] leading-relaxed opacity-60">
+            Rate {payout.rate.perUsd} {payout.payout.currency}/USD, {payout.rate.source}.
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
