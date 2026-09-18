@@ -67,7 +67,7 @@ console.log('\nopening history');
 
 const base = buildActivity([], 'NGN', NOW);
 
-check('four rows in the list', base.transactions.length, 4);
+check('a full history in the feed', base.transactions.length, 30);
 check('nothing real yet', base.realCount, 0);
 check('three ranges', Object.keys(base.spend).sort(), ['daily', 'weekly', 'yearly']);
 check('daily columns', base.spend.daily.buckets.length, 90);

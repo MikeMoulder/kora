@@ -82,6 +82,7 @@ export interface SpendSeries {
 }
 
 export interface ActivityPayload {
+  /** Newest first, capped at `HISTORY_LIMIT`. The card shows the first few. */
   transactions: ActivityItem[];
   spend: Record<SpendRange, SpendSeries>;
   /** How many of the transactions are real rather than opening history. */
@@ -401,13 +402,24 @@ function seriesFor(items: ActivityItem[], range: SpendRange, now: number): Spend
 // ── Assembly ──────────────────────────────────────────────────────────────
 
 /**
- * How many rows the dashboard list shows.
+ * How many rows the dashboard card shows.
  *
- * Four, because the list now stands beside the balance card rather than in a
+ * Four, because the list stands beside the balance card rather than in a
  * column of its own, and the two read as a pair only while they are close to
  * the same height. Everything older is one click away under View all.
  */
 export const RECENT_LIMIT = 4;
+
+/**
+ * How many the feed actually carries.
+ *
+ * Enough for the full list in the workspace panel, which is where View all
+ * goes. Sent in the same response as the card's four rather than fetched again
+ * when the panel opens: the rows are already computed, they are small, and a
+ * second request for a list the server has just built in memory would be a
+ * round trip to save about two kilobytes.
+ */
+export const HISTORY_LIMIT = 30;
 
 /**
  * Everything the dashboard reads, from one pass over one list.
@@ -429,7 +441,7 @@ export function buildActivity(
     .sort((a, b) => b.at.localeCompare(a.at));
 
   return {
-    transactions: items.slice(0, RECENT_LIMIT),
+    transactions: items.slice(0, HISTORY_LIMIT),
     spend: {
       daily: seriesFor(items, 'daily', now),
       weekly: seriesFor(items, 'weekly', now),

@@ -12,7 +12,7 @@ import {
   Star,
 } from 'lucide-react';
 import { cn, copyText } from '@/lib/utils';
-import { Avatar } from './parts';
+import { Avatar, RowSkeleton, TransactionRow } from './parts';
 import { Flag } from '../Flag';
 import { Spinner } from '../ui/primitives';
 import {
@@ -1036,6 +1036,57 @@ interface ReceivingAccount {
   rail: string;
   testIdentity: boolean;
   note: string | null;
+}
+
+/**
+ * Everything the account has done, as far back as the feed carries.
+ *
+ * Where View all goes now that the operator console is retired. That link
+ * pointed at a reconciliation queue, which was never a transaction history
+ * and never the thing somebody clicking "view all" under a list of payments
+ * was asking for.
+ *
+ * A panel rather than a page for the same reason the others are: the balance
+ * it is a history of stays on screen beside it. Nothing is fetched here. The
+ * rows arrived with the four on the card, because the server had already
+ * computed them and a second request to save two kilobytes is a worse trade
+ * than sending them.
+ */
+export function ActivityPanel({ activity }: { activity: ActivityPayload | null }) {
+  const rows = activity?.transactions ?? null;
+
+  const [inflow, outflow] = useMemo(() => {
+    const items = rows ?? [];
+    return [
+      items.filter((t) => t.direction === 'in').reduce((sum, t) => sum + t.amount, 0),
+      items.filter((t) => t.direction === 'out').reduce((sum, t) => sum + Math.abs(t.amount), 0),
+    ];
+  }, [rows]);
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="grid grid-cols-2 gap-2">
+        <Slot label="In" value={rows ? formatNaira(inflow) : null} />
+        <Slot label="Out" value={rows ? formatNaira(outflow) : null} />
+      </div>
+
+      <p className="mt-3 text-[10px] leading-relaxed text-ink-faint">
+        The last {rows?.length ?? 0} movements on the account. Hover a row for when it
+        happened and what it was for.
+      </p>
+
+      {/*
+        * Scrolls inside the panel rather than growing it. The panel is already
+        * as tall as the dashboard beside it, and a list that pushes past that
+        * takes the page scrollbar with it, which moves the balance out of view.
+        */}
+      <ul className="-mr-1 mt-4 max-h-[min(60vh,560px)] space-y-2 overflow-y-auto pr-1">
+        {rows === null
+          ? Array.from({ length: 6 }, (_, n) => <RowSkeleton key={n} />)
+          : rows.map((tx) => <TransactionRow key={tx.id} tx={tx} showDate />)}
+      </ul>
+    </div>
+  );
 }
 
 export function ReceivePanel({ onCredited }: { onCredited?: () => void }) {

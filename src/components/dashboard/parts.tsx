@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { initialsOf } from '@/lib/demo-data';
+import { formatNaira, initialsOf, relativeDay } from '@/lib/demo-data';
+import type { ActivityItem } from '@/lib/account/activity';
 
 /**
  * Monogram disc, standing in for the photo avatars in the reference.
@@ -162,5 +163,78 @@ export function CardLabel({
       <h2 className="text-[14px] font-semibold tracking-[-0.015em]">{children}</h2>
       {action}
     </div>
+  );
+}
+
+/**
+ * One movement, as a card.
+ *
+ * Shared between the dashboard's four rows and the full list in the workspace
+ * panel, because they are the same object seen twice and letting them drift
+ * would mean two answers to what a transaction looks like.
+ *
+ * Three columns and nothing else: portrait, who and what happened, how much.
+ * The direction badge that used to sit on the right is gone, since the sign
+ * and the colour already say which way the money went.
+ */
+export function TransactionRow({
+  tx,
+  showDate = false,
+}: {
+  tx: ActivityItem;
+  /** The panel says when, since it is a history rather than a headline. */
+  showDate?: boolean;
+}) {
+  const incoming = tx.direction === 'in';
+  const when = relativeDay(tx.at);
+
+  return (
+    <li className="card-row flex items-center gap-3 rounded-[18px] bg-paper px-3.5 py-2.5">
+      <Avatar id={tx.avatarId} name={tx.party} kind={tx.kind} size={44} />
+
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[14px] font-medium tracking-[-0.01em]">{tx.party}</div>
+        {/*
+          * The status line carries the tooltip. It holds the timestamp and the
+          * reason for the movement, and neither has anywhere else to live on a
+          * card this spare.
+          */}
+        <div
+          title={`${when}. ${tx.detail}${tx.real ? '' : ' (opening history)'}`}
+          className="mt-0.5 w-fit truncate text-[11.5px] text-ink-faint"
+        >
+          {incoming ? 'Received' : 'Paid'}
+          {showDate && <span className="text-ink-ghost"> &middot; {when}</span>}
+        </div>
+      </div>
+
+      <span
+        className={cn(
+          'tabular shrink-0 text-[14px] font-semibold tracking-[-0.01em]',
+          incoming ? 'text-gain' : 'text-loss',
+        )}
+      >
+        {formatNaira(tx.amount, { signed: true })}
+      </span>
+    </li>
+  );
+}
+
+/**
+ * What a row looks like before the feed answers.
+ *
+ * Drawn at the real row's dimensions rather than as a shorter bar, so nothing
+ * reflows when the data lands.
+ */
+export function RowSkeleton() {
+  return (
+    <li className="card-row flex items-center gap-3 rounded-[18px] bg-paper px-3.5 py-2.5">
+      <span className="h-11 w-11 shrink-0 rounded-full bg-paper-sunk" />
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <span className="block h-3 w-1/2 rounded bg-paper-sunk" />
+        <span className="block h-2.5 w-1/4 rounded bg-paper-sunk" />
+      </div>
+      <span className="h-3.5 w-20 shrink-0 rounded bg-paper-sunk" />
+    </li>
   );
 }

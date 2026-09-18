@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { Sidebar, PANEL_TITLES, type PanelMode } from './Sidebar';
 import { SpendChart } from './SpendChart';
 import {
+  ActivityPanel,
   AgentPanel,
   BeneficiaryPanel,
   ReceivePanel,
@@ -18,7 +19,7 @@ import {
   type RatesPayload,
   type SendDraft,
 } from './panels';
-import { Avatar, CardLabel, IconButton } from './parts';
+import { Avatar, CardLabel, IconButton, RowSkeleton, TransactionRow } from './parts';
 import { Flag } from '../Flag';
 import { ACCOUNT, formatNaira, relativeDay } from '@/lib/demo-data';
 import { RECENT_LIMIT, type ActivityItem, type ActivityPayload } from '@/lib/account/activity';
@@ -120,7 +121,7 @@ export function Dashboard() {
                   onReceive={() => open('receive')}
                 />
 
-                <Transactions activity={activity} />
+                <Transactions activity={activity} onViewAll={() => open('activity')} />
               </div>
 
               <SpendChart activity={activity} />
@@ -138,6 +139,7 @@ export function Dashboard() {
                 )}
                 {panel === 'agent' && <AgentPanel onCompose={compose} />}
                 {panel === 'beneficiaries' && <BeneficiaryPanel onCompose={compose} />}
+                {panel === 'activity' && <ActivityPanel activity={activity} />}
                 {panel === 'receive' && <ReceivePanel onCredited={refresh} />}
               </PanelFrame>
             )}
@@ -444,20 +446,27 @@ function Action({
  * colour already say which way the money went, and a third marker saying it
  * again was taking the space the amount wanted.
  */
-function Transactions({ activity }: { activity: ActivityPayload | null }) {
-  const rows = activity?.transactions ?? null;
+function Transactions({
+  activity,
+  onViewAll,
+}: {
+  activity: ActivityPayload | null;
+  onViewAll: () => void;
+}) {
+  const rows = activity?.transactions.slice(0, RECENT_LIMIT) ?? null;
 
   return (
     <div className="flex h-full min-w-0 flex-col">
       <div className="px-1">
         <CardLabel
           action={
-            <Link
-              href="/operator"
+            <button
+              type="button"
+              onClick={onViewAll}
               className="text-[11px] text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
             >
               View all
-            </Link>
+            </button>
           }
         >
           Recent transactions
@@ -473,56 +482,3 @@ function Transactions({ activity }: { activity: ActivityPayload | null }) {
   );
 }
 
-function TransactionRow({ tx }: { tx: ActivityItem }) {
-  const incoming = tx.direction === 'in';
-
-  return (
-    <li className="card-row flex items-center gap-3 rounded-[18px] bg-paper px-3.5 py-2.5">
-      <Avatar id={tx.avatarId} name={tx.party} kind={tx.kind} size={44} />
-
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[14px] font-medium tracking-[-0.01em]">{tx.party}</div>
-        {/*
-          * The status word carries the tooltip now that the glyph beside it is
-          * gone. It was the only thing holding the timestamp and the reason for
-          * the movement, and neither has anywhere else on the card to live.
-          */}
-        <div
-          title={`${relativeDay(tx.at)}. ${tx.detail}${tx.real ? '' : ' (opening history)'}`}
-          className="mt-0.5 w-fit truncate text-[11.5px] text-ink-faint"
-        >
-          {incoming ? 'Received' : 'Paid'}
-        </div>
-      </div>
-
-      <span
-        className={cn(
-          'tabular shrink-0 text-[14px] font-semibold tracking-[-0.01em]',
-          incoming ? 'text-gain' : 'text-loss',
-        )}
-      >
-        {formatNaira(tx.amount, { signed: true })}
-      </span>
-    </li>
-  );
-}
-
-/**
- * What a row looks like before the feed answers.
- *
- * Drawn at the real row's dimensions rather than as a shorter bar, so the
- * column does not jump when the data lands. The list is the tallest thing on
- * the overview and a reflow there moves the whole card.
- */
-function RowSkeleton() {
-  return (
-    <li className="card-row flex items-center gap-3 rounded-[18px] bg-paper px-3.5 py-2.5">
-      <span className="h-11 w-11 shrink-0 rounded-full bg-paper-sunk" />
-      <div className="min-w-0 flex-1 space-y-1.5">
-        <span className="block h-3 w-1/2 rounded bg-paper-sunk" />
-        <span className="block h-2.5 w-1/4 rounded bg-paper-sunk" />
-      </div>
-      <span className="h-3.5 w-20 shrink-0 rounded bg-paper-sunk" />
-    </li>
-  );
-}

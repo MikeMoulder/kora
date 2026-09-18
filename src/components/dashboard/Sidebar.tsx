@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { LayoutGrid, Send, Settings, Sparkles, Users } from 'lucide-react';
+import { History, LayoutGrid, Send, Sparkles, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar } from './parts';
 import { ACCOUNT } from '@/lib/demo-data';
@@ -24,12 +24,13 @@ import { ACCOUNT } from '@/lib/demo-data';
  * column of icons that would then need eight.
  */
 
-export type PanelMode = 'send' | 'agent' | 'beneficiaries' | 'receive';
+export type PanelMode = 'send' | 'agent' | 'beneficiaries' | 'activity' | 'receive';
 
 export const PANEL_TITLES: Record<PanelMode, string> = {
   send: 'Send money',
   agent: 'Kora Agent',
   beneficiaries: 'Beneficiaries',
+  activity: 'All activity',
   receive: 'Receive',
 };
 
@@ -42,6 +43,7 @@ const ITEMS: RailItem[] = [
   { mode: 'send', icon: <Send className="h-[18px] w-[18px]" strokeWidth={1.8} /> },
   { mode: 'agent', icon: <Sparkles className="h-[18px] w-[18px]" strokeWidth={1.8} /> },
   { mode: 'beneficiaries', icon: <Users className="h-[18px] w-[18px]" strokeWidth={1.8} /> },
+  { mode: 'activity', icon: <History className="h-[18px] w-[18px]" strokeWidth={1.8} /> },
 ];
 
 export function Sidebar({
@@ -86,13 +88,6 @@ export function Sidebar({
           />
         ))}
 
-        <span className="my-1 h-px w-6 bg-rule" aria-hidden />
-
-        <RailLink
-          href="/operator"
-          label="Operator console"
-          icon={<Settings className="h-[18px] w-[18px]" strokeWidth={1.8} />}
-        />
       </nav>
 
       <Avatar id={ACCOUNT.avatarId} name={ACCOUNT.fullName} size={36} className="mt-4" />
@@ -132,29 +127,6 @@ function RailButton({
       >
         {icon}
       </button>
-      <Tooltip>{label}</Tooltip>
-    </div>
-  );
-}
-
-function RailLink({
-  href,
-  label,
-  icon,
-}: {
-  href: string;
-  label: string;
-  icon: React.ReactNode;
-}) {
-  return (
-    <div className="group relative">
-      <Link
-        href={href}
-        aria-label={label}
-        className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-faint transition-colors hover:bg-paper-sunk hover:text-ink"
-      >
-        {icon}
-      </Link>
       <Tooltip>{label}</Tooltip>
     </div>
   );
