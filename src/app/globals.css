@@ -94,7 +94,6 @@ body {
     radial-gradient(70rem 48rem at 10% -5%, var(--color-mint-soft) 0%, transparent 58%),
     radial-gradient(75rem 55rem at 100% 105%, var(--color-mint-deep) 0%, transparent 62%),
     linear-gradient(155deg, var(--color-mint) 0%, var(--color-mint-deep) 100%);
-  background-attachment: fixed;
 }
 
 /*
