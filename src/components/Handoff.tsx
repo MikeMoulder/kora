@@ -207,7 +207,10 @@ function HandoffLive({
             </span>
           </Row>
 
-          <GasCheck address={wallet?.address ?? null} />
+          <WalletReadiness
+            address={wallet?.address ?? null}
+            needs={quote.quote.receiveUsdc}
+          />
 
           <Button variant="outline" className="mt-4 w-full" onClick={send} busy={busy}>
             {busy
@@ -335,20 +338,24 @@ function Passport({
 }
 
 /**
- * Whether the signed-in wallet can pay a network fee.
+ * Whether the signed-in wallet can actually make the transfer.
  *
- * Pollar sponsors the base reserve and the trustline, so a new wallet exists
- * and can hold USDC while owning no XLM at all. It still cannot pay a fee, and
- * the first transfer fails with "insufficient XLM to cover the network fee" —
- * at the last step, after everything else has worked.
+ * Two separate things have to be true, and Pollar guarantees neither. It
+ * sponsors the base reserve and the trustline, so a wallet exists and can hold
+ * the asset while owning none of it and no XLM either.
  *
- * Catching it before the button is pressed turns a dead end into a sentence
- * and, on testnet, a fix. The real fix is a starting balance under Treasury,
- * Account Funding, which seeds every wallet at creation; this is for the ones
- * created before that was set.
+ *   XLM   pays the network fee. Zero means the submission fails.
+ *   Asset is what is being sent. A trustline is permission to hold it, not a
+ *         balance, and an empty trustline fails with "insufficient balance of
+ *         the asset being sent".
+ *
+ * Both used to surface as a Stellar error after the button was pressed, at the
+ * end of a corridor where every other step had worked. Checking first turns
+ * that into a sentence and, where possible, a fix.
  */
-function GasCheck({ address }: { address: string | null }) {
-  const [balance, setBalance] = useState<number | null>(null);
+function WalletReadiness({ address, needs }: { address: string | null; needs: number }) {
+  const [xlm, setXlm] = useState<number | null>(null);
+  const [asset, setAsset] = useState<number | null>(null);
   const [funding, setFunding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -360,14 +367,22 @@ function GasCheck({ address }: { address: string | null }) {
         cache: 'no-store',
       }).then((r) => (r.ok ? r.json() : null));
 
-      const native = (account?.balances ?? []).find(
-        (entry: { asset_type?: string }) => entry.asset_type === 'native',
-      );
+      const balances: { asset_type?: string; asset_code?: string; balance?: string }[] =
+        account?.balances ?? [];
 
-      setBalance(native ? Number(native.balance) : 0);
+      const native = balances.find((entry) => entry.asset_type === 'native');
+      setXlm(native ? Number(native.balance) : 0);
+
+      if (SETTLEMENT_ASSET === 'XLM') {
+        setAsset(native ? Number(native.balance) : 0);
+      } else {
+        const line = balances.find((entry) => entry.asset_code === SETTLEMENT_ASSET);
+        setAsset(line ? Number(line.balance) : 0);
+      }
     } catch {
       // Horizon being unreachable is not a reason to block the attempt.
-      setBalance(null);
+      setXlm(null);
+      setAsset(null);
     }
   }, [address]);
 
@@ -375,7 +390,7 @@ function GasCheck({ address }: { address: string | null }) {
     check();
   }, [check]);
 
-  const topUp = useCallback(async () => {
+  const topUpXlm = useCallback(async () => {
     if (!address) return;
 
     setFunding(true);
@@ -389,45 +404,73 @@ function GasCheck({ address }: { address: string | null }) {
       }).then((r) => r.json());
 
       if (!body.ok) throw new Error(body.error ?? 'The faucet declined.');
-
-      setBalance(Number(body.data.balance ?? 0));
+      await check();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'The faucet declined.');
     } finally {
       setFunding(false);
     }
-  }, [address]);
+  }, [address, check]);
 
-  // Enough for a fee many times over. Below this the transfer will fail.
-  if (balance === null || balance >= 1) return null;
+  if (xlm === null || asset === null) return null;
+
+  // Enough for a fee many times over. Below this the submission fails.
+  const noGas = xlm < 1;
+  const shortOfAsset = asset < needs;
+
+  if (!noGas && !shortOfAsset) return null;
 
   return (
     <div className="leg-simulated mt-4 rounded-lg px-4 py-3">
-      <p className="text-xs leading-relaxed">
-        This wallet holds no XLM, so it cannot pay the Stellar network fee. Pollar sponsored
-        its reserve and its trustline, but not the fee.
-      </p>
-
-      {STELLAR_NETWORK === 'testnet' ? (
+      {noGas && (
         <>
-          <Button
-            variant="outline"
-            className="mt-3 w-full"
-            onClick={topUp}
-            busy={funding}
-          >
-            {funding ? 'Asking Friendbot' : 'Fund it from the testnet faucet'}
-          </Button>
-          <p className="mt-2 text-[10px] leading-relaxed text-ink-muted">
-            Testnet XLM, which has no value. The lasting fix is a starting balance under
-            Treasury, Account Funding, which seeds every wallet at creation.
+          <p className="text-xs leading-relaxed">
+            This wallet holds no XLM, so it cannot pay the Stellar network fee. Pollar
+            sponsored its reserve and its trustline, but not the fee.
           </p>
+
+          {STELLAR_NETWORK === 'testnet' ? (
+            <Button variant="outline" className="mt-3 w-full" onClick={topUpXlm} busy={funding}>
+              {funding ? 'Asking Friendbot' : 'Fund it from the testnet faucet'}
+            </Button>
+          ) : (
+            <p className="mt-2 text-[10px] leading-relaxed text-ink-muted">
+              Set a starting balance under Treasury, Account Funding, or turn on fee
+              sponsorship.
+            </p>
+          )}
         </>
-      ) : (
-        <p className="mt-2 text-[10px] leading-relaxed text-ink-muted">
-          Set a starting balance under Treasury, Account Funding, or turn on fee
-          sponsorship.
-        </p>
+      )}
+
+      {shortOfAsset && !noGas && (
+        <>
+          <p className="text-xs leading-relaxed">
+            This wallet holds {asset.toFixed(2)} {SETTLEMENT_ASSET} and the hand-off needs{' '}
+            {needs.toFixed(2)}. The trustline is open, which is permission to hold the asset
+            rather than a balance of it.
+          </p>
+
+          {SETTLEMENT_ASSET === 'USDC' && STELLAR_NETWORK === 'testnet' ? (
+            <p className="mt-2 text-[10px] leading-relaxed text-ink-muted">
+              Circle&rsquo;s faucet issues testnet USDC on Stellar, 20 at a time every two
+              hours, at{' '}
+              <a
+                href="https://faucet.circle.com"
+                target="_blank"
+                rel="noreferrer"
+                className="underline underline-offset-4"
+              >
+                faucet.circle.com
+              </a>
+              . Send it to the wallet above. A payment of about &#8358;25,000 or less fits
+              inside one request.
+            </p>
+          ) : (
+            <p className="mt-2 text-[10px] leading-relaxed text-ink-muted">
+              Fund the sending wallet with {SETTLEMENT_ASSET} before handing off.
+            </p>
+          )}
+        </>
       )}
 
       {error && <p className="mt-2 text-[11px]">{error}</p>}
