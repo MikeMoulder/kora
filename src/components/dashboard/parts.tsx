@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { formatNaira, initialsOf, relativeDay } from '@/lib/demo-data';
 import type { ActivityItem } from '@/lib/account/activity';
@@ -47,20 +48,6 @@ export function Monogram({
 }
 
 /**
- * A counterparty's portrait, with the monogram behind it.
- *
- * Two facts the interface has to hold at once: some counterparties have a
- * picture and some do not, and the ones that do not are mostly businesses
- * rather than missing people. So this is not a loader with a placeholder, it
- * is a portrait *or* a monogram, and both are finished states.
- *
- * The fallback is on `onError` rather than on a check that the file exists,
- * because a client component cannot ask the filesystem anything. A portrait
- * that has not been supplied yet fails its request once and the monogram
- * takes the space, with no layout shift: the disc is the same size either
- * way and is already painted underneath.
- */
-/**
  * Portraits already known to be absent.
  *
  * Module scope rather than component state, because the same person is drawn
@@ -71,6 +58,32 @@ export function Monogram({
  */
 const missing = new Set<string>();
 
+/**
+ * A counterparty's portrait, with the monogram behind it.
+ *
+ * Two facts the interface has to hold at once: some counterparties have a
+ * picture and some do not, and the ones that do not are mostly businesses
+ * rather than missing people. So this is not a loader with a placeholder, it
+ * is a portrait *or* a monogram, and both are finished states.
+ *
+ * The fallback is on `onError` rather than on a check that the file exists,
+ * because a client component cannot ask the filesystem anything. A portrait
+ * that has not been supplied yet fails its request once and the monogram takes
+ * the space, with no layout shift: the disc is the same size either way and is
+ * already painted underneath.
+ *
+ * Drawn through `next/image` rather than a bare tag, and the reason is the
+ * supplied files. They are full resolution portraits, between one and six
+ * megabytes each, and every one of them is painted here at 44 pixels or less.
+ * A plain tag ships the whole thing down the wire so the browser can throw
+ * ninety nine percent of it away during a downscale. The optimiser resizes
+ * once, encodes to AVIF or WebP, caches the result and serves the size the
+ * device actually asked for.
+ *
+ * `width` and `height` carry the drawn size rather than the file's, which is
+ * what the srcset is derived from: at 44 the optimiser is asked for 48 and 96,
+ * the second being the retina pair. The originals stay untouched on disk.
+ */
 export function Avatar({
   id,
   name,
@@ -96,15 +109,25 @@ export function Avatar({
       <Monogram name={name} kind={kind} size={size} />
 
       {usePortrait && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <Image
           src={`/avatars/${id}.png`}
           alt=""
           aria-hidden
           width={size}
           height={size}
-          loading="lazy"
-          decoding="async"
+          quality={80}
+          /*
+           * Eager, against the default.
+           *
+           * Lazy loading exists to avoid paying for pixels nobody scrolls to,
+           * and it buys nothing here: the optimised portrait is about a
+           * kilobyte and a half, every one of them is the primary visual
+           * anchor of a row at the top of the page, and the panels that hold
+           * the rest are not in the DOM until they are opened. All lazy adds
+           * is an intersection callback standing between the page and ten
+           * kilobytes.
+           */
+          loading="eager"
           onError={() => {
             if (id) missing.add(id);
             setFailed(true);
