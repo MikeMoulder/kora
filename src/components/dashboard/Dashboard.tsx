@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import Link from 'next/link';
-import { ArrowDownLeft, ArrowUpRight, Bell, Eye, EyeOff, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ArrowDownLeft, ArrowUpRight, Bell, Eye, EyeOff, LogOut, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { signOutDemo } from '@/lib/demo-auth';
 import { Sidebar, PANEL_TITLES, type PanelMode } from './Sidebar';
 import { SpendChart } from './SpendChart';
 import {
@@ -153,6 +154,24 @@ export function Dashboard() {
 // ── Header ────────────────────────────────────────────────────────────────
 
 function Header() {
+  const router = useRouter();
+
+  /*
+   * The way out has to exist now that there is a way in.
+   *
+   * Clearing the cookie is the whole of signing out, since the cookie is the
+   * whole of the session. The refresh matters as much as the navigation: the
+   * dashboard is a cached route, and without it a Back press can serve the
+   * account from the client router to somebody the server now reads as signed
+   * out. Replace keeps the dashboard off the history stack for the same
+   * reason the sign in form stays off it.
+   */
+  function signOut() {
+    signOutDemo();
+    router.replace('/');
+    router.refresh();
+  }
+
   return (
     <header className="flex items-center justify-between px-5 py-6 sm:px-7">
       <div className="min-w-0">
@@ -171,6 +190,9 @@ function Header() {
             aria-hidden
           />
         </div>
+        <IconButton label="Sign out" onClick={signOut}>
+          <LogOut className="h-4 w-4" strokeWidth={1.8} />
+        </IconButton>
         <Avatar
           id={ACCOUNT.avatarId}
           name={ACCOUNT.fullName}
