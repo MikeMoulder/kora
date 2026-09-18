@@ -1,5 +1,5 @@
-import { Kora } from '@/components/Kora';
+import { Dashboard } from '@/components/dashboard/Dashboard';
 
 export default function Home() {
-  return <Kora />;
+  return <Dashboard />;
 }
