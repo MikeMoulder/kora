@@ -27,13 +27,29 @@
  * of them is a statement about the product:
  *
  *   sdk.api.pollar.xyz     publishable key, origin checked. A 403
- *                          ORIGIN_NOT_ALLOWED here is this app's empty Domains
- *                          list and says nothing about Earn.
+ *                          ORIGIN_NOT_ALLOWED here is about the Origin header,
+ *                          not about Earn. See `ORIGIN` below.
  *   server.api.pollar.xyz  secret key, not origin checked. If Earn is absent
  *                          here it is absent.
  */
 
 const SDK_BASE = process.env.POLLAR_SDK_API_URL ?? 'https://sdk.api.pollar.xyz/v1';
+
+/**
+ * The origin the SDK door is checked against.
+ *
+ * This is the finding that made the whole first run worthless. A script has no
+ * origin, so `fetch` from Node sends no `Origin` header, and Pollar answers a
+ * request with no origin exactly as it answers one from an origin that is not
+ * on the list: 403 ORIGIN_NOT_ALLOWED. The first run read that as an empty
+ * Domains list and it was nothing of the sort.
+ *
+ * Sent explicitly here, and the value has to match a Domains entry character
+ * for character. `http://localhost:3000` passes. `https://localhost:3000` and
+ * `http://127.0.0.1:3000` are both 403, which is worth knowing before somebody
+ * spends an afternoon on the second one.
+ */
+const ORIGIN = process.env.POLLAR_PROBE_ORIGIN ?? 'http://localhost:3000';
 const SERVER_BASE = process.env.POLLAR_SERVER_API_URL ?? 'https://server.api.pollar.xyz/v1';
 
 const PUBLISHABLE = process.env.NEXT_PUBLIC_POLLAR_PUBLISHABLE_KEY ?? '';
@@ -53,7 +69,9 @@ async function get(door: 'sdk' | 'server', path: string): Promise<Probe> {
 
   try {
     const response = await fetch(`${base}${path}`, {
-      headers: { 'x-pollar-api-key': key },
+      // The server door is not origin checked, so the header is harmless
+      // there and load bearing on the other one.
+      headers: { 'x-pollar-api-key': key, Origin: ORIGIN },
       cache: 'no-store',
     });
 
@@ -89,6 +107,8 @@ function report(probe: Probe) {
 }
 
 async function main() {
+  console.log(`Origin      ${ORIGIN}`);
+  console.log('');
   console.log('Keys');
   console.log(`  publishable  ${PUBLISHABLE ? PUBLISHABLE.slice(0, 12) + '...' : 'MISSING'}`);
   console.log(`  secret       ${SECRET ? SECRET.slice(0, 12) + '...' : 'MISSING'}`);
@@ -122,8 +142,11 @@ async function main() {
   }
 
   console.log('');
-  console.log('Read the 403s carefully. ORIGIN_NOT_ALLOWED on the sdk door is this app');
-  console.log('having an empty Domains list, not a statement about Earn.');
+  console.log('How to read the answers:');
+  console.log('  403 ORIGIN_NOT_ALLOWED    the Origin above is not a Domains entry');
+  console.log('  401 SDK_AUTH_INVALID_TOKEN  origin fine, Earn wants a signed in user');
+  console.log('  200 with providers: []    Earn is reachable and switched off');
+  console.log('  404 on the server door    Earn is not on the server API at all');
 }
 
 main().catch((err) => {
