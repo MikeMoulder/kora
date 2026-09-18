@@ -170,6 +170,8 @@ Still outstanding, and both small:
 | 2026-09-18 | Console audit, gate | Browser console | Errors | None |
 | 2026-09-18 | Smoke regression after the gate | `npm run smoke` | 34 checks | All passed |
 | 2026-09-18 | Final production build | `npm run build` | 23 routes + Proxy | Clean |
+| 2026-09-18 | API not gated | Browser fetch of `/api/rates`, no cookie | 1 | 200 with live rates, matcher confirmed |
+| 2026-09-18 | Gate layout, 375px | Browser measurement | Overflow | None, sign out fits beside the bell |
 | 2026-09-18 | Smoke after dashboard | `npm run smoke` | 34 checks | All passed, no regression |
 | 2026-09-18 | Typecheck during overview cleanup | `npx tsc --noEmit` | Whole project | Clean, run 5 times |
 | 2026-09-18 | Smoke after overview cleanup | `npm run smoke` | 34 checks | All passed, no regression |
@@ -798,6 +800,10 @@ The matcher names `/` and `/dashboard/:path*` rather than using the documented c
 with a negative pattern. Cheaper, and it cannot swallow an asset or an API route by
 accident. The Flutterwave webhook in particular arrives with no cookie and must never be
 answered with a redirect to a login form.
+
+Confirmed rather than assumed: `/api/rates` answers 200 with live data and no cookie in the
+jar. That is the check that matters for `npm run e2e` and for the Flutterwave webhook, both
+of which arrive without one and would break silently if the matcher were drawn any wider.
 
 **The session moved from sessionStorage to a cookie**, because the proxy runs before any
 client code exists and sessionStorage is invisible there. The cookie name and its parser
