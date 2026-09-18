@@ -43,7 +43,18 @@ import {
  * somebody opens the dropdown moves the card underneath it.
  */
 const ROWS = 14;
-const DOT_MAX = 5;
+
+/*
+ * A dot is a share of its column rather than a fixed size, capped so it never
+ * swells into a blob.
+ *
+ * Fixed-width dots kept the vertical gaps honest and let the horizontal ones
+ * drift: the same 5px dot sat in a 10px column on a desktop and a 15px one on
+ * a phone, so the field went from square to a set of ruled lines purely by
+ * being looked at on something narrower. A share of the column keeps both gaps
+ * in step across widths and across the three ranges.
+ */
+const DOT_MAX = 7;
 
 /*
  * Chosen so the grid comes out square.
@@ -132,7 +143,7 @@ export function SpendChart({ activity }: { activity: ActivityPayload | null }) {
         )}
 
         <div
-          className="flex items-end gap-[2px]"
+          className="flex items-end"
           style={{ height: PLOT_HEIGHT }}
           role="img"
           aria-label={
@@ -143,7 +154,12 @@ export function SpendChart({ activity }: { activity: ActivityPayload | null }) {
         >
           {buckets.length === 0
             ? Array.from({ length: 30 }, (_, n) => (
-                <span key={n} className="h-[5px] flex-1 rounded-full bg-paper-sunk" />
+                <span key={n} className="flex-1">
+                  <span
+                    style={{ maxWidth: DOT_MAX }}
+                    className="mx-auto block aspect-square w-[55%] rounded-full bg-paper-sunk"
+                  />
+                </span>
               ))
             : buckets.map((bucket, column) => (
                 <Column
@@ -211,7 +227,7 @@ function Column({
             key={row}
             style={{ maxWidth: DOT_MAX }}
             className={cn(
-              'aspect-square w-full shrink-0 rounded-full',
+              'aspect-square w-[55%] shrink-0 rounded-full',
               lit
                 ? selected
                   ? 'bg-accent-deep'
