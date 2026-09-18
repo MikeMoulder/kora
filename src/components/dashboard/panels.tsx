@@ -193,6 +193,9 @@ export function SendPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  /** Guards the auto-review against Strict Mode running the effect twice. */
+  const autoReviewed = useRef(false);
+
   const amount = Number(digits || '0');
   const available = balance?.balance ?? 0;
   const destination = destinations.find((d) => d.country === country) ?? null;
@@ -270,6 +273,27 @@ export function SendPanel({
       setBusy(false);
     }
   }, [account, amount, destination, name, note, onSent]);
+
+  /*
+   * A draft that already has everything goes straight to review.
+   *
+   * Kora Agent reading a sentence into a filled form and stopping there made
+   * it a text box with extra steps: the person still had to find the button
+   * and press it to learn what the payment would cost. A complete draft
+   * arrives priced, one confirmation away, which is the only version where
+   * saying it out loud beats typing it.
+   *
+   * Incomplete drafts still land on the form. The beneficiary book fills a
+   * name and an account but never an amount, and guessing one would be worse
+   * than asking.
+   */
+  useEffect(() => {
+    if (autoReviewed.current) return;
+    if (!draft?.name || !draft.country || !draft.amount || draft.amount < 1000) return;
+
+    autoReviewed.current = true;
+    review();
+  }, [draft, review]);
 
   if (picking) {
     return (
@@ -576,9 +600,9 @@ function Line({ label, children }: { label: string; children: React.ReactNode })
 // ── Kora Agent ────────────────────────────────────────────────────────────
 
 const AGENT_EXAMPLES = [
-  'Send ₦250,000 to Carlos in Bolivia for the brand system',
-  'Pay Maria ₦180,000 in Bolivia for milestone three',
-  'Send KES 5,000 to Diego in Bolivia tomorrow',
+  'Send ₦2,000 to Carlos Mamani in Bolivia for the brand system',
+  'Pay Maria Quispe ₦3,500 in Bolivia for milestone three',
+  'Send ₦5,000 to Diego Rojas in Bolivia for the launch film',
 ];
 
 interface ParsedIntent {
@@ -766,18 +790,35 @@ export function AgentPanel({ onCompose }: { onCompose?: (draft: SendDraft) => vo
           <button
             type="button"
             onClick={() => {
-              if (!parsed.resolution.selected) return;
+              /*
+               * `intent.destinationCountry` and not `resolution.selected`.
+               * The resolver picks the corridor the money is funded from,
+               * which is Nigeria, so reading the country off it sent every
+               * payment to the country it came from and left the destination
+               * blank. The parser already returns the destination as an ISO
+               * code; it just was not the field being read.
+               */
+              const destination = parsed.intent.destinationCountry;
+              if (!destination) return;
+
               onCompose?.({
                 name: parsed.intent.recipientName ?? '',
-                country: parsed.resolution.selected.country,
-                amount: parsed.intent.amount ?? undefined,
+                country: destination,
+                // Only an amount the account can actually spend. KORA funds
+                // from one region and that region is Nigeria, so a figure
+                // the parser read as shillings is not a naira figure and
+                // passing it through would quote the wrong payment.
+                amount:
+                  parsed.intent.currency && parsed.intent.currency !== 'NGN'
+                    ? undefined
+                    : (parsed.intent.amount ?? undefined),
                 note: parsed.intent.purpose ?? undefined,
               });
             }}
             disabled={!ready}
             className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
           >
-            Take this to Send
+            Review this payment
             <ArrowRight className="h-4 w-4" strokeWidth={2} />
           </button>
 
