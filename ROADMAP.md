@@ -128,11 +128,11 @@ false.
 
 **Status: DONE. 44 commits, working tree clean, history audited for secrets.**
 
-Right now there is one commit and a large pile of uncommitted work. The target is 50 or
-more commits. The plan is to split the finished work into logical commits that each stand
-on their own, then commit in small steps from here on.
+The project started this phase with a single commit and a large pile of uncommitted work.
+The finished work was split into logical commits that each stand on their own. From here
+on, each task is committed on its own as it lands.
 
-| Item | Rough commits | Notes |
+| Item | Planned | Notes |
 | --- | --- | --- |
 | F1 | 2 | Tooling, dependencies, scripts, env example |
 | F2 | 1 | Recon notes |
