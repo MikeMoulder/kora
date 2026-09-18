@@ -1,0 +1,609 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowRight, Delete, Search, Sparkles, Star } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Monogram } from './parts';
+import { Flag } from '../Flag';
+import { Spinner } from '../ui/primitives';
+import {
+  ACCOUNT,
+  BENEFICIARIES,
+  formatNaira,
+  relativeDay,
+  type Beneficiary,
+} from '@/lib/demo-data';
+
+// ── Rates ─────────────────────────────────────────────────────────────────
+
+export interface PayoutRate {
+  code: string;
+  name: string;
+  symbol: string;
+  country: string;
+  perNaira: number;
+}
+
+export interface CrossRate {
+  code: string;
+  name: string;
+  symbol: string;
+  country: string;
+  value: number;
+}
+
+export interface RatesPayload {
+  base: string;
+  basePerUsd: number;
+  per: number;
+  asOf: string;
+  source: string;
+  stale: boolean;
+  rates: CrossRate[];
+  payouts: PayoutRate[];
+}
+
+export function useRates() {
+  const [rates, setRates] = useState<RatesPayload | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/rates')
+      .then((r) => r.json())
+      .then((body) => {
+        if (!cancelled && body?.ok) setRates(body.data as RatesPayload);
+      })
+      .catch(() => {
+        // The strip and the quote both render an em dash without a rate.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return rates;
+}
+
+/**
+ * Both panels end at the same place: a sentence handed to the real corridor
+ * engine. The manual keypad composes that sentence from fields, the agent
+ * reads it from a person. Neither one gets its own payment path, because a
+ * second path is a second set of rules to keep honest.
+ */
+function intentHref(text: string) {
+  return `/send?intent=${encodeURIComponent(text)}`;
+}
+
+// ── Send ──────────────────────────────────────────────────────────────────
+
+export function SendPanel({ rates }: { rates: RatesPayload | null }) {
+  const router = useRouter();
+  const [beneficiary, setBeneficiary] = useState<Beneficiary>(BENEFICIARIES[0]);
+  const [digits, setDigits] = useState('100000');
+  const [note, setNote] = useState('');
+  const [picking, setPicking] = useState(false);
+
+  const amount = Number(digits || '0');
+  const payout = rates?.payouts.find((p) => p.code === beneficiary.payoutCurrency) ?? null;
+  const receives = payout ? amount * payout.perNaira : null;
+
+  const press = useCallback((key: string) => {
+    setDigits((current) => {
+      if (key === 'del') return current.slice(0, -1);
+      if (current.length >= 12) return current;
+      if (current === '0') return key;
+      return current + key;
+    });
+  }, []);
+
+  const send = useCallback(() => {
+    const purpose = note.trim() ? ` for ${note.trim()}` : '';
+    router.push(
+      intentHref(
+        `Send ₦${amount.toLocaleString()} to ${beneficiary.name} in ${beneficiary.countryName}${purpose}.`,
+      ),
+    );
+  }, [amount, beneficiary, note, router]);
+
+  if (picking) {
+    return (
+      <BeneficiaryPicker
+        onPick={(b) => {
+          setBeneficiary(b);
+          setPicking(false);
+        }}
+        onCancel={() => setPicking(false)}
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-2 rounded-full bg-ink px-3 py-1.5 text-[11px] font-medium text-paper">
+          <Flag code={ACCOUNT.country} size={13} />
+          NGN &middot;&middot;&middot;&middot; 4471
+        </span>
+        <button
+          type="button"
+          onClick={() => setPicking(true)}
+          className="text-xs text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
+        >
+          Change
+        </button>
+      </div>
+
+      <div className="mt-5 flex items-center gap-3">
+        <Monogram name={beneficiary.name} size={42} />
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold">{beneficiary.name}</div>
+          <div className="truncate text-xs text-ink-faint">{beneficiary.account}</div>
+        </div>
+      </div>
+
+      <div className="mt-7 text-center">
+        <div className="tabular text-[40px] font-semibold leading-none tracking-[-0.03em]">
+          &#8358;{amount.toLocaleString()}
+        </div>
+        <div className="mt-2 text-xs text-ink-faint">
+          Balance {formatNaira(ACCOUNT.balance)}
+        </div>
+      </div>
+
+      <dl className="mt-6 space-y-2 border-t border-rule pt-4 text-xs">
+        <Line label="Exchange rate">
+          {payout
+            ? `₦1 = ${payout.perNaira.toFixed(6)} ${payout.code}`
+            : '—'}
+        </Line>
+        <Line label="Recipient receives">
+          {receives !== null && payout ? (
+            <span className="font-semibold text-ink">
+              {payout.symbol}
+              {receives.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            </span>
+          ) : (
+            '—'
+          )}
+        </Line>
+        <Line label="Balance after">
+          {formatNaira(ACCOUNT.balance - amount)}
+        </Line>
+        <Line label="Transaction fee">Quoted on the next screen</Line>
+      </dl>
+
+      <input
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Add a note"
+        maxLength={60}
+        className="mt-4 h-10 w-full rounded-lg border border-rule bg-paper-sunk px-3 text-sm outline-none transition-colors placeholder:text-ink-faint focus:border-ink focus:bg-paper"
+      />
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((key) => (
+          <Key key={key} onPress={() => press(key)}>
+            {key}
+          </Key>
+        ))}
+        <Key onPress={() => press('000')} className="text-[15px]">
+          000
+        </Key>
+        <Key onPress={() => press('0')}>0</Key>
+        <Key onPress={() => press('del')} label="Delete">
+          <Delete className="h-4 w-4" strokeWidth={1.8} />
+        </Key>
+      </div>
+
+      <button
+        type="button"
+        onClick={send}
+        disabled={amount <= 0}
+        className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
+      >
+        Review payment
+        <ArrowRight className="h-4 w-4" strokeWidth={2} />
+      </button>
+
+      <p className="mt-3 text-center text-[10px] leading-relaxed text-ink-faint">
+        Review runs the real corridor engine. Nothing moves until you confirm a quote.
+      </p>
+    </div>
+  );
+}
+
+function Line({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4">
+      <dt className="text-ink-muted">{label}</dt>
+      <dd className="tabular text-right text-ink">{children}</dd>
+    </div>
+  );
+}
+
+function Key({
+  children,
+  onPress,
+  label,
+  className,
+}: {
+  children: React.ReactNode;
+  onPress: () => void;
+  label?: string;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onPress}
+      aria-label={label}
+      className={cn(
+        'tabular flex h-11 items-center justify-center rounded-lg bg-paper-sunk text-[17px] font-medium transition-colors hover:bg-paper-edge active:bg-ink active:text-paper',
+        className,
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ── Kora Agent ────────────────────────────────────────────────────────────
+
+const AGENT_EXAMPLES = [
+  'Send ₦250,000 to Carlos in Bolivia for the brand system',
+  'Pay Maria ₦180,000 in Bolivia for milestone three',
+  'Send KES 5,000 to Diego in Bolivia tomorrow',
+];
+
+interface ParsedIntent {
+  intent: {
+    recipientName: string | null;
+    destinationCountry: string | null;
+    amount: number | null;
+    currency: string | null;
+    purpose: string | null;
+    timing: 'now' | 'scheduled';
+    scheduledFor: string | null;
+  };
+  source: 'gemini' | 'rules';
+  note: string | null;
+  resolution: {
+    status: string;
+    message: string;
+    selected: { countryName: string; railLabel: string; readiness: string; country: string } | null;
+  };
+}
+
+/**
+ * Kora Agent.
+ *
+ * The same parser the corridor flow uses, surfaced as a panel beside the
+ * account. It reads a sentence into a structured intent and stops there. It
+ * cannot pick a corridor, produce a quote or move money, and the button it
+ * offers leads to the ordinary review screen rather than to a payment.
+ *
+ * That boundary is the point. An agent that could spend from this balance on
+ * the strength of its own parse would be a worse product, not a better one.
+ */
+export function AgentPanel() {
+  const router = useRouter();
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [parsed, setParsed] = useState<ParsedIntent | null>(null);
+  const [lastText, setLastText] = useState('');
+
+  const run = useCallback(async (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+
+    setBusy(true);
+    setError(null);
+    setParsed(null);
+    setLastText(trimmed);
+
+    try {
+      const res = await fetch('/api/intent', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: trimmed }),
+      });
+      const body = await res.json();
+      if (!body.ok) throw new Error(body.error ?? 'Could not read that.');
+      setParsed(body.data as ParsedIntent);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not read that.');
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const ready = parsed?.resolution.status === 'ready';
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink text-paper">
+          <Sparkles className="h-4 w-4" strokeWidth={1.8} />
+        </span>
+        <div>
+          <div className="text-sm font-semibold">Kora Agent</div>
+          <div className="text-[11px] text-ink-faint">Say it, do not fill it in</div>
+        </div>
+      </div>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          run(text);
+        }}
+        className="mt-5"
+      >
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              run(text);
+            }
+          }}
+          rows={3}
+          maxLength={300}
+          placeholder="Send &#8358;250,000 to Carlos in Bolivia for the brand system"
+          aria-label="Tell Kora Agent what to do"
+          className="w-full resize-none rounded-xl border border-rule bg-paper-sunk px-3.5 py-3 text-sm leading-relaxed outline-none transition-colors placeholder:text-ink-faint focus:border-ink focus:bg-paper"
+        />
+
+        <button
+          type="submit"
+          disabled={!text.trim() || busy}
+          className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
+        >
+          {busy && <Spinner />}
+          {busy ? 'Reading' : 'Read this'}
+        </button>
+      </form>
+
+      {!parsed && !busy && !error && (
+        <div className="mt-4 space-y-1.5">
+          <div className="text-[10px] uppercase tracking-[0.12em] text-ink-faint">Try</div>
+          {AGENT_EXAMPLES.map((example) => (
+            <button
+              key={example}
+              type="button"
+              onClick={() => {
+                setText(example);
+                run(example);
+              }}
+              className="block w-full rounded-lg border border-rule px-3 py-2 text-left text-xs text-ink-muted transition-colors hover:border-ink hover:text-ink"
+            >
+              {example}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {error && (
+        <p className="mt-4 rounded-lg border border-ink px-3 py-2.5 text-xs">{error}</p>
+      )}
+
+      {parsed && (
+        <div className="mt-5 flex min-h-0 flex-1 flex-col">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-[0.12em] text-ink-faint">
+              Understood as
+            </span>
+            <span className="rounded-md border border-rule px-1.5 py-0.5 text-[10px] text-ink-muted">
+              {parsed.source === 'gemini' ? 'Gemini and rules' : 'Rule parser'}
+            </span>
+          </div>
+
+          <dl className="mt-2.5 divide-y divide-rule rounded-xl border border-rule">
+            <Slot label="Recipient" value={parsed.intent.recipientName} />
+            <Slot label="Destination" value={parsed.intent.destinationCountry} />
+            <Slot
+              label="Amount"
+              value={
+                parsed.intent.amount !== null
+                  ? `${parsed.intent.amount.toLocaleString()} ${parsed.intent.currency ?? ''}`
+                  : null
+              }
+            />
+            <Slot label="Purpose" value={parsed.intent.purpose} />
+            <Slot
+              label="Timing"
+              value={
+                parsed.intent.timing === 'scheduled' && parsed.intent.scheduledFor
+                  ? new Date(parsed.intent.scheduledFor).toLocaleDateString()
+                  : 'Now'
+              }
+            />
+          </dl>
+
+          <div
+            className={cn(
+              'mt-3 rounded-xl px-3.5 py-3 text-xs leading-relaxed',
+              // The funding corridor belongs to KORA, so a resolved one is
+              // drawn solid. Outlining it here would have said Pollar owns it.
+              ready ? 'leg-ours' : 'leg-simulated',
+            )}
+          >
+            {parsed.resolution.selected && (
+              <div className="mb-1.5 flex items-center gap-2 font-medium">
+                <Flag code={parsed.resolution.selected.country} size={13} />
+                {parsed.resolution.selected.countryName}, {parsed.resolution.selected.railLabel}
+              </div>
+            )}
+            {parsed.resolution.message}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => router.push(intentHref(lastText))}
+            disabled={!ready}
+            className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
+          >
+            Review payment
+            <ArrowRight className="h-4 w-4" strokeWidth={2} />
+          </button>
+
+          <p className="mt-3 text-[10px] leading-relaxed text-ink-faint">
+            The agent filled that object and stopped. It holds no signer and cannot move
+            money. Review runs the corridor engine, and a payment still needs you to confirm
+            a quote.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Slot({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 px-3 py-2">
+      <dt className="text-[11px] uppercase tracking-[0.06em] text-ink-faint">{label}</dt>
+      <dd className={cn('text-right text-xs', value ? 'text-ink' : 'text-ink-ghost')}>
+        {value ?? 'not stated'}
+      </dd>
+    </div>
+  );
+}
+
+// ── Beneficiaries ─────────────────────────────────────────────────────────
+
+export function BeneficiaryPanel() {
+  const router = useRouter();
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = q
+      ? BENEFICIARIES.filter(
+          (b) =>
+            b.name.toLowerCase().includes(q) ||
+            b.countryName.toLowerCase().includes(q) ||
+            b.role.toLowerCase().includes(q),
+        )
+      : BENEFICIARIES;
+    return [...list].sort((a, b) => Number(b.favourite) - Number(a.favourite));
+  }, [query]);
+
+  return (
+    <div className="flex h-full flex-col">
+      <div>
+        <div className="text-sm font-semibold">Beneficiaries</div>
+        <div className="text-[11px] text-ink-faint">
+          {BENEFICIARIES.length} saved across{' '}
+          {new Set(BENEFICIARIES.map((b) => b.country)).size} countries
+        </div>
+      </div>
+
+      <div className="relative mt-4">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint"
+          strokeWidth={1.8}
+        />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by name, country or role"
+          className="h-10 w-full rounded-lg border border-rule bg-paper-sunk pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-ink-faint focus:border-ink focus:bg-paper"
+        />
+      </div>
+
+      <div className="-mx-1 mt-3 flex-1 space-y-1.5 overflow-y-auto px-1">
+        {filtered.length === 0 && (
+          <p className="py-8 text-center text-xs text-ink-faint">
+            Nobody matches &ldquo;{query}&rdquo;.
+          </p>
+        )}
+
+        {filtered.map((b) => (
+          <div
+            key={b.id}
+            className="group rounded-xl border border-rule p-3 transition-colors hover:border-ink"
+          >
+            <div className="flex items-center gap-3">
+              <Monogram name={b.name} size={38} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-medium">{b.name}</span>
+                  {b.favourite && (
+                    <Star className="h-3 w-3 shrink-0 fill-ink text-ink" strokeWidth={0} />
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] text-ink-faint">
+                  <Flag code={b.country} size={11} />
+                  <span className="truncate">
+                    {b.role}, {b.countryName}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-2.5 flex items-center justify-between border-t border-rule pt-2.5">
+              <span className="text-[10px] text-ink-faint">
+                {b.paymentCount > 0
+                  ? `${b.paymentCount} payment${b.paymentCount === 1 ? '' : 's'}, last ${
+                      b.lastPaidAt ? relativeDay(b.lastPaidAt) : 'never'
+                    }`
+                  : 'Never paid'}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(intentHref(`Send ₦100,000 to ${b.name} in ${b.countryName}.`))
+                }
+                className="rounded-md border border-rule px-2 py-1 text-[11px] font-medium transition-colors hover:border-ink hover:bg-ink hover:text-paper"
+              >
+                Pay
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BeneficiaryPicker({
+  onPick,
+  onCancel,
+}: {
+  onPick: (b: Beneficiary) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold">Choose a recipient</span>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-xs text-ink-muted underline-offset-4 hover:text-ink hover:underline"
+        >
+          Cancel
+        </button>
+      </div>
+
+      <div className="-mx-1 mt-4 flex-1 space-y-1.5 overflow-y-auto px-1">
+        {BENEFICIARIES.map((b) => (
+          <button
+            key={b.id}
+            type="button"
+            onClick={() => onPick(b)}
+            className="flex w-full items-center gap-3 rounded-xl border border-rule p-3 text-left transition-colors hover:border-ink"
+          >
+            <Monogram name={b.name} size={36} />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium">{b.name}</div>
+              <div className="truncate text-[11px] text-ink-faint">{b.account}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
