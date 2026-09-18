@@ -75,13 +75,10 @@ export interface SpendBucket {
 
 export interface SpendSeries {
   range: SpendRange;
+  /** What one column covers, for the chart to name its own window. */
+  unit: 'day' | 'week' | 'month';
+  /** Oldest first. */
   buckets: SpendBucket[];
-  /** Summed across the window. */
-  total: number;
-  /** The tallest bucket, which is what the chart annotates on first paint. */
-  peakIndex: number;
-  /** Plain words for the window the buckets cover. */
-  window: string;
 }
 
 export interface ActivityPayload {
@@ -92,17 +89,20 @@ export interface ActivityPayload {
 }
 
 /**
- * How much of the past each range shows.
+ * How far back each range is built.
  *
- * The range names the size of one column, and the window is chosen to keep the
- * column count in the band where a dot matrix reads as a texture rather than
- * as a handful of stripes. Both are printed under the chart, so neither has to
- * be inferred from the shape.
+ * Deliberately more than any one screen draws. The chart runs the full width
+ * of the dashboard now, so the number of columns that fits is a property of
+ * the window rather than of the data: a wide monitor has room for three months
+ * of days, a phone for four weeks of them. Sending the long series and letting
+ * the chart take the tail it can draw at a sensible pitch is the only version
+ * that is dense on both, and it costs a few hundred small numbers over the
+ * wire.
  */
-const WINDOWS: Record<SpendRange, { columns: number; window: string }> = {
-  daily: { columns: 30, window: 'Last 30 days' },
-  weekly: { columns: 52, window: 'Last 52 weeks' },
-  yearly: { columns: 12, window: 'Last 12 months' },
+const WINDOWS: Record<SpendRange, { columns: number; unit: 'day' | 'week' | 'month' }> = {
+  daily: { columns: 90, unit: 'day' },
+  weekly: { columns: 104, unit: 'week' },
+  yearly: { columns: 60, unit: 'month' },
 };
 
 const DAY_MS = 86_400_000;
@@ -147,8 +147,11 @@ function openingHistory(now: number): ActivityItem[] {
   const items: ActivityItem[] = [];
   const today = Math.floor(now / DAY_MS);
 
-  // 400 days back, so the twelve month window is fully covered at any date.
-  for (let back = 400; back >= 0; back -= 1) {
+  /*
+   * Five years and a bit, so the longest window is fully covered at any date
+   * rather than trailing off into empty columns at its left edge.
+   */
+  for (let back = 1900; back >= 0; back -= 1) {
     const epochDay = today - back;
     const random = rngFor(epochDay);
     const date = new Date(epochDay * DAY_MS);
@@ -354,7 +357,7 @@ function labelFor(range: SpendRange, start: number): string {
  * month by making it look busier than it was.
  */
 function seriesFor(items: ActivityItem[], range: SpendRange, now: number): SpendSeries {
-  const { columns, window } = WINDOWS[range];
+  const { columns, unit } = WINDOWS[range];
 
   const startOf =
     range === 'daily' ? startOfDay : range === 'weekly' ? startOfWeek : startOfMonth;
@@ -392,24 +395,19 @@ function seriesFor(items: ActivityItem[], range: SpendRange, now: number): Spend
     amount: Math.round(totals.get(start) ?? 0),
   }));
 
-  let peakIndex = 0;
-  for (let n = 1; n < buckets.length; n += 1) {
-    if (buckets[n].amount > buckets[peakIndex].amount) peakIndex = n;
-  }
-
-  return {
-    range,
-    buckets,
-    total: buckets.reduce((sum, bucket) => sum + bucket.amount, 0),
-    peakIndex,
-    window,
-  };
+  return { range, unit, buckets };
 }
 
 // ── Assembly ──────────────────────────────────────────────────────────────
 
-/** How many rows the dashboard list shows. */
-export const RECENT_LIMIT = 6;
+/**
+ * How many rows the dashboard list shows.
+ *
+ * Four, because the list now stands beside the balance card rather than in a
+ * column of its own, and the two read as a pair only while they are close to
+ * the same height. Everything older is one click away under View all.
+ */
+export const RECENT_LIMIT = 4;
 
 /**
  * Everything the dashboard reads, from one pass over one list.

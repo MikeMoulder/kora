@@ -34,6 +34,11 @@ function assert(what: string, ok: boolean) {
 
 const NOW = Date.parse('2026-09-18T12:00:00Z');
 
+/** Summed across a series, which the payload no longer carries for itself. */
+function total(series: { buckets: { amount: number }[] }): number {
+  return series.buckets.reduce((sum, b) => sum + b.amount, 0);
+}
+
 /** The injected row, found by its reference rather than by where it landed. */
 function row(payload: ReturnType<typeof buildActivity>, id: string) {
   const found = payload.transactions.find((t) => t.id === id);
@@ -62,24 +67,38 @@ console.log('\nopening history');
 
 const base = buildActivity([], 'NGN', NOW);
 
-check('six rows in the list', base.transactions.length, 6);
+check('four rows in the list', base.transactions.length, 4);
 check('nothing real yet', base.realCount, 0);
 check('three ranges', Object.keys(base.spend).sort(), ['daily', 'weekly', 'yearly']);
-check('daily columns', base.spend.daily.buckets.length, 30);
-check('weekly columns', base.spend.weekly.buckets.length, 52);
-check('yearly columns', base.spend.yearly.buckets.length, 12);
+check('daily columns', base.spend.daily.buckets.length, 90);
+check('weekly columns', base.spend.weekly.buckets.length, 104);
+check('yearly columns', base.spend.yearly.buckets.length, 60);
+check(
+  'each range names its unit',
+  [base.spend.daily.unit, base.spend.weekly.unit, base.spend.yearly.unit],
+  ['day', 'week', 'month'],
+);
 
 assert(
   'rows are newest first',
   base.transactions.every((t, n) => n === 0 || t.at <= base.transactions[n - 1].at),
 );
 assert('no row is dated in the future', base.transactions.every((t) => Date.parse(t.at) <= NOW));
-assert('every range is populated', Object.values(base.spend).every((s) => s.total > 0));
 assert(
-  'peak is the tallest column',
-  Object.values(base.spend).every(
-    (s) => s.buckets[s.peakIndex].amount === Math.max(...s.buckets.map((b) => b.amount)),
-  ),
+  'every range is populated',
+  Object.values(base.spend).every((s) => s.buckets.some((b) => b.amount > 0)),
+);
+assert(
+  'the long ranges reach back far enough to fill their oldest column',
+  base.spend.weekly.buckets[0].amount > 0 && base.spend.yearly.buckets[0].amount > 0,
+);
+assert(
+  'most days carry something, so the matrix has no holes in it',
+  base.spend.daily.buckets.filter((b) => b.amount > 0).length > base.spend.daily.buckets.length / 2,
+);
+assert(
+  'buckets run oldest to newest',
+  Object.values(base.spend).every((s) => s.buckets.every((b, n) => n === 0 || b.at > s.buckets[n - 1].at)),
 );
 assert(
   'the same clock gives the same history',
@@ -125,8 +144,8 @@ check('it is named for the rail', row(withCredit, 'TEST-2').party, 'Flutterwave 
 check('it is signed in', row(withCredit, 'TEST-2').direction, 'in');
 check(
   'it does not touch outbound spend',
-  withCredit.spend.daily.total,
-  base.spend.daily.total,
+  total(withCredit.spend.daily),
+  total(base.spend.daily),
 );
 
 // ── Recovering a counterparty from older wording ──────────────────────────
@@ -163,14 +182,14 @@ const otherCurrency = buildActivity([entry({ currency: 'USD' })], 'NGN', NOW);
 check('another currency is ignored', otherCurrency.realCount, 0);
 
 const tooOld = buildActivity(
-  [entry({ at: new Date(NOW - 500 * 86_400_000).toISOString() })],
+  [entry({ at: new Date(NOW - 2_400 * 86_400_000).toISOString() })],
   'NGN',
   NOW,
 );
 check(
   'an entry older than every window changes no column',
-  tooOld.spend.yearly.total,
-  base.spend.yearly.total,
+  total(tooOld.spend.yearly),
+  total(base.spend.yearly),
 );
 check('but it is still counted as real', tooOld.realCount, 1);
 
