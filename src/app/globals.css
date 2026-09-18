@@ -1,26 +1,150 @@
 @import "tailwindcss";
 
+/*
+ * KORA design tokens.
+ *
+ * The one rule that drives the palette: colour encodes who owns the leg.
+ *
+ *   amber  — the African leg. KORA built it.
+ *   cyan   — the Pollar leg. Pollar owns it.
+ *   slate  — simulated / not executable.
+ *
+ * So the hand-off is legible as a colour change before anyone reads a label,
+ * and a viewer can tell at a glance which parts of the demo we are claiming.
+ */
+
+@theme {
+  /* Canvas — warm-shifted near-black, not pure #000 */
+  --color-ink-950: #0a0908;
+  --color-ink-900: #111010;
+  --color-ink-850: #171615;
+  --color-ink-800: #1e1c1b;
+  --color-ink-700: #2a2826;
+  --color-ink-600: #3d3a37;
+  --color-ink-500: #5c5854;
+  --color-ink-400: #8a847e;
+  --color-ink-300: #b5afa8;
+  --color-ink-200: #d9d4ce;
+  --color-ink-100: #efebe6;
+
+  /* KORA — the African leg */
+  --color-amber-glow: #ffb547;
+  --color-amber-core: #f59e0b;
+  --color-amber-deep: #b45309;
+  --color-amber-wash: #2a1f0e;
+
+  /* Pollar — the settlement leg */
+  --color-flow-glow: #4fd1c5;
+  --color-flow-core: #14b8a6;
+  --color-flow-deep: #0f766e;
+  --color-flow-wash: #0c2522;
+
+  /* States */
+  --color-live: #34d399;
+  --color-sandbox: #fbbf24;
+  --color-planned: #6b7280;
+  --color-danger: #f87171;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  background: var(--color-ink-950);
+  color: var(--color-ink-100);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tabular figures everywhere money is shown — digits must not jitter as
+   amounts update. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* A hairline that reads as a seam rather than a border. */
+.seam {
+  border-color: color-mix(in oklab, var(--color-ink-100) 8%, transparent);
+}
+
+.seam-strong {
+  border-color: color-mix(in oklab, var(--color-ink-100) 14%, transparent);
+}
+
+/* Ambient glow behind the hero. Masked at the bottom so the container's own
+   edge never shows as a hard line on a dark canvas. */
+.aurora {
+  background:
+    radial-gradient(48rem 24rem at 10% 0%, color-mix(in oklab, var(--color-amber-core) 13%, transparent), transparent 65%),
+    radial-gradient(44rem 22rem at 90% 14%, color-mix(in oklab, var(--color-flow-core) 11%, transparent), transparent 65%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 45%, transparent 100%);
+}
+
+/* The particle that travels the route. */
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -1000;
+  }
+}
+
+.flow-line {
+  stroke-dasharray: 4 10;
+  animation: flow-dash 18s linear infinite;
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-line,
+  .pulse-soft,
+  .rise {
+    animation: none;
+  }
+}
+
+/* Scrollbars that do not shout. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-700) transparent;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-amber-core) 35%, transparent);
 }
