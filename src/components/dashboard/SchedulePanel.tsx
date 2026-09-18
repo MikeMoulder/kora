@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, RowSkeleton } from './parts';
@@ -23,6 +23,11 @@ export interface SchedulePayload {
   currency: string;
   /** Whether the list survives a server restart. */
   durable: boolean;
+  /**
+   * What is expected to fire due payments. `dashboard` means this browser
+   * polls; `cron` means a runner secret is set and something external does.
+   */
+  runner: 'cron' | 'dashboard';
 }
 
 /**
@@ -33,9 +38,14 @@ export interface SchedulePayload {
  * fallen due, and it is the only thing in the entire app that triggers a
  * scheduled payment.
  *
- * There is no cron. The dashboard is the scheduler. That is a real limitation
- * rather than a hidden one, and the panel says so on screen rather than in a
- * comment nobody reads.
+ * Whether it does the second job depends on the deployment, and the server
+ * decides rather than this file. With no runner secret set the browser is the
+ * scheduler, which is the development default and a real limitation. With one
+ * set, the route refuses browsers outright and something external is expected
+ * to call it; this hook then reads and never runs.
+ *
+ * Either way the panel says which mode is live, because a scheduler that
+ * quietly is not running is worse than one that says it is not.
  *
  * The interval is a minute: long enough that an open tab is not hammering a
  * route that spends from a treasury, short enough that "due in a minute"
@@ -44,16 +54,44 @@ export interface SchedulePayload {
 export function useSchedule(onRan?: () => void) {
   const [schedule, setSchedule] = useState<SchedulePayload | null>(null);
 
+  /*
+   * Whether this browser should be driving the runner at all.
+   *
+   * Held in a ref rather than read off `schedule`, because the polling effect
+   * must not tear down and rebuild its interval every time the list changes.
+   * Reading it through a ref keeps the effect's dependencies stable while
+   * still letting the first response switch the behaviour off.
+   *
+   * It starts false. A configured deployment answers 401 to a browser, and
+   * firing one request to find that out on every page load is a request whose
+   * only possible outcome is a console error.
+   */
+  const shouldPoll = useRef(false);
+
   const refresh = useCallback(async () => {
     try {
       const body = await fetch('/api/schedule', { cache: 'no-store' }).then((r) => r.json());
-      if (body?.ok) setSchedule(body.data as SchedulePayload);
+      if (body?.ok) {
+        const payload = body.data as SchedulePayload;
+        shouldPoll.current = payload.runner === 'dashboard';
+        setSchedule(payload);
+      }
     } catch {
       // The panel keeps its loading state, which is honest: it does not know.
     }
   }, []);
 
   const run = useCallback(async () => {
+    /*
+     * A cron deployment is not this browser's business.
+     *
+     * The route would refuse it anyway, since the secret cannot be shipped to
+     * a page, so this is not the security boundary. It is the difference
+     * between a dashboard that quietly does nothing and one that logs a 401
+     * every sixty seconds for the length of a demo.
+     */
+    if (!shouldPoll.current) return;
+
     try {
       const body = await fetch('/api/schedule/run', { method: 'POST' }).then((r) => r.json());
 
@@ -74,8 +112,12 @@ export function useSchedule(onRan?: () => void) {
   }, [onRan, refresh]);
 
   useEffect(() => {
-    refresh();
-    run();
+    /*
+     * Read first, then run. `refresh` is what sets `shouldPoll`, so running
+     * before it has answered would either fire a request a cron deployment
+     * refuses, or skip the first tick on one that wanted it.
+     */
+    void refresh().then(run);
 
     const timer = setInterval(run, 60_000);
     return () => clearInterval(timer);
@@ -201,9 +243,9 @@ export function SchedulePanel({
         * during a demo, which is the worst possible moment to find out.
         */}
       <p className="mt-5 text-[10px] leading-relaxed text-ink-faint">
-        Due payments are sent while this dashboard is open, checked every minute. There is
-        no scheduler running behind it, so a payment due overnight goes out when somebody
-        next opens this page.
+        {schedule.runner === 'cron'
+          ? 'A scheduler is expected to send due payments every minute, independently of this page. It signs its requests, so nothing in this browser can trigger a payment.'
+          : 'Due payments are sent while this dashboard is open, checked every minute. There is no scheduler running behind it, so a payment due overnight goes out when somebody next opens this page.'}
         {!schedule.durable &&
           ' This list is held in the server process and will not survive a restart.'}
       </p>

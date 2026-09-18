@@ -5,6 +5,8 @@ import { quote as quoteCorridor } from '@/lib/corridor/engine';
 import { hasTreasury } from '@/lib/stellar/treasury';
 import { CORRIDOR, avatarIdFor } from '@/lib/payments/settle';
 import { schedule, scheduleIsDurable } from '@/lib/schedule/store';
+
+import { runnerMode } from '@/lib/schedule/runner-auth';
 import { byDueDate } from '@/lib/schedule/types';
 import type { ScheduledPayment } from '@/lib/schedule/types';
 import { fail, ok, readJson } from '@/lib/api';
@@ -228,6 +230,19 @@ export async function GET() {
        * kind of thing that gets discovered during a demo.
        */
       durable: scheduleIsDurable(),
+      /**
+       * What is expected to fire due payments here.
+       *
+       * `dashboard` means the browser polls, which is the development default
+       * and a real limitation. `cron` means a runner secret is set, so the
+       * browser cannot call the route and something external is expected to.
+       *
+       * Expected, not confirmed. If the secret is set and nobody wired the
+       * timer up, payments sit held. The panel says a scheduler is expected
+       * rather than that one is running, because this cannot tell the
+       * difference and should not imply it can.
+       */
+      runner: runnerMode(),
     });
   } catch (err) {
     return fail(err);
