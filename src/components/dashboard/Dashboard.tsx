@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowDownLeft, ArrowUpRight, Bell, Eye, EyeOff, Repeat } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Bell, Eye, EyeOff, Repeat, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Sidebar, type PanelMode } from './Sidebar';
+import { Sidebar, PANEL_TITLES, type PanelMode } from './Sidebar';
 import { SpendChart } from './SpendChart';
 import { AgentPanel, BeneficiaryPanel, SendPanel, useRates, type RatesPayload } from './panels';
 import { CardLabel, DirectionMark, IconButton, Monogram } from './parts';
@@ -20,25 +20,26 @@ import {
 /**
  * The account dashboard.
  *
- * Follows the supplied reference layout, translated into the monochrome
- * system and rebased on the naira. Where the reference listed euro, sterling
- * and Swiss franc, this lists the African currencies KORA actually declares
- * corridors for, quoted against the naira from the same live feed the quote
- * engine uses.
+ * Follows the supplied reference layout, translated into the KORA system and
+ * rebased on the naira. Where the reference listed euro, sterling and Swiss
+ * franc, this lists the African currencies KORA actually declares corridors
+ * for, quoted against the naira from the same live feed the quote engine uses.
  *
- * The right hand column is a workspace the rail switches: a manual send, the
- * agent, or the beneficiary book. All three end at the same review screen,
- * which is the real corridor engine.
+ * Overview is the resting state and owns the full width: balance, rates,
+ * activity and spend. Nothing is composed until somebody asks for it, so the
+ * workspace panel stays closed until the rail, or Pay on the balance card,
+ * opens it. All three panels end at the same review screen, which is the real
+ * corridor engine.
  */
 export function Dashboard() {
-  const [mode, setMode] = useState<PanelMode>('send');
+  const [panel, setPanel] = useState<PanelMode | null>(null);
   const rates = useRates();
 
   return (
     <div className="canvas min-h-screen p-0 lg:p-6 xl:p-9 2xl:p-14">
       <div className="mx-auto flex min-h-screen w-full max-w-[1320px] overflow-hidden border-rule bg-paper lg:min-h-0 lg:rounded-[28px] lg:border lg:shadow-[0_2px_4px_rgba(15,17,16,0.04),0_24px_60px_-20px_rgba(15,17,16,0.18)]">
         <div className="hidden lg:flex">
-          <Sidebar mode={mode} onSelect={setMode} />
+          <Sidebar panel={panel} onSelect={setPanel} />
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -46,9 +47,18 @@ export function Dashboard() {
 
           <div className="flex min-w-0 flex-1 flex-col xl:flex-row">
             <main className="min-w-0 flex-1 space-y-4 px-5 pb-8 sm:px-7">
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+              {panel === null && <PanelTriggers onSelect={setPanel} />}
+
+              <div
+                className={cn(
+                  'grid gap-4',
+                  panel === null
+                    ? 'lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]'
+                    : 'lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]',
+                )}
+              >
                 <div className="min-w-0 space-y-4">
-                  <BalanceCard rates={rates} />
+                  <BalanceCard rates={rates} onPay={() => setPanel('send')} />
                   <CurrencyStrip rates={rates} />
                 </div>
 
@@ -60,13 +70,13 @@ export function Dashboard() {
               <SpendChart />
             </main>
 
-            <section className="w-full shrink-0 border-t border-rule px-5 py-6 sm:px-7 xl:w-[360px] xl:border-l xl:border-t-0 xl:px-6">
-              <MobileModeSwitch mode={mode} onSelect={setMode} />
-
-              {mode === 'send' && <SendPanel rates={rates} />}
-              {mode === 'agent' && <AgentPanel />}
-              {mode === 'beneficiaries' && <BeneficiaryPanel />}
-            </section>
+            {panel !== null && (
+              <PanelFrame title={PANEL_TITLES[panel]} onClose={() => setPanel(null)}>
+                {panel === 'send' && <SendPanel rates={rates} />}
+                {panel === 'agent' && <AgentPanel />}
+                {panel === 'beneficiaries' && <BeneficiaryPanel />}
+              </PanelFrame>
+            )}
           </div>
         </div>
       </div>
@@ -109,9 +119,79 @@ function Header() {
   );
 }
 
+// ── Workspace panel ───────────────────────────────────────────────────────
+
+/**
+ * The frame around whichever workspace the rail opened.
+ *
+ * It carries the title and the way out. A panel that can be opened has to be
+ * closable from inside it, because the rail that opened it is not on screen
+ * below the `lg` breakpoint.
+ */
+function PanelFrame({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      aria-label={title}
+      className="rise w-full shrink-0 border-t border-rule px-5 py-6 sm:px-7 xl:w-[360px] xl:border-l xl:border-t-0 xl:px-6"
+    >
+      <div className="mb-5 flex items-center justify-between">
+        <h2 className="text-[13px] font-semibold tracking-[-0.01em]">{title}</h2>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={'Close ' + title}
+          className="flex h-8 w-8 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-paper-sunk hover:text-ink"
+        >
+          <X className="h-4 w-4" strokeWidth={1.8} />
+        </button>
+      </div>
+
+      {children}
+    </section>
+  );
+}
+
+/**
+ * The rail is hidden below `lg`, so narrow screens need their own way into
+ * the three workspaces. Shown only while the overview is at rest, since an
+ * open panel carries its own close.
+ */
+function PanelTriggers({ onSelect }: { onSelect: (panel: PanelMode) => void }) {
+  const modes: PanelMode[] = ['send', 'agent', 'beneficiaries'];
+
+  return (
+    <div className="grid grid-cols-3 gap-2 lg:hidden">
+      {modes.map((mode) => (
+        <button
+          key={mode}
+          type="button"
+          onClick={() => onSelect(mode)}
+          className="rounded-xl border border-rule py-2.5 text-[11px] font-medium text-ink-muted transition-colors hover:border-ink hover:text-ink"
+        >
+          {PANEL_TITLES[mode]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── Balance ───────────────────────────────────────────────────────────────
 
-function BalanceCard({ rates }: { rates: RatesPayload | null }) {
+function BalanceCard({
+  rates,
+  onPay,
+}: {
+  rates: RatesPayload | null;
+  onPay: () => void;
+}) {
   const [hidden, setHidden] = useState(false);
 
   return (
@@ -151,7 +231,11 @@ function BalanceCard({ rates }: { rates: RatesPayload | null }) {
       </div>
 
       <div className="mt-5 grid grid-cols-3 gap-1 border-t border-ink/15 pt-4">
-        <Action icon={<ArrowUpRight className="h-4 w-4" strokeWidth={1.8} />} label="Pay" />
+        <Action
+          icon={<ArrowUpRight className="h-4 w-4" strokeWidth={1.8} />}
+          label="Pay"
+          onClick={onPay}
+        />
         <Action icon={<Repeat className="h-4 w-4" strokeWidth={1.8} />} label="Convert" />
         <Action icon={<ArrowDownLeft className="h-4 w-4" strokeWidth={1.8} />} label="Receive" />
       </div>
@@ -159,10 +243,19 @@ function BalanceCard({ rates }: { rates: RatesPayload | null }) {
   );
 }
 
-function Action({ icon, label }: { icon: React.ReactNode; label: string }) {
+function Action({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick?: () => void;
+}) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className="flex flex-col items-center gap-1.5 rounded-lg py-1.5 text-ink/75 transition-colors hover:bg-ink/10 hover:text-ink"
     >
       <span className="flex h-8 w-8 items-center justify-center rounded-full border border-ink/25 bg-paper/40">
@@ -279,39 +372,5 @@ function TransactionRow({ tx }: { tx: DemoTransaction }) {
         <DirectionMark direction={tx.direction} />
       </div>
     </li>
-  );
-}
-
-// ── Mode switch for narrow screens, which have no rail ────────────────────
-
-function MobileModeSwitch({
-  mode,
-  onSelect,
-}: {
-  mode: PanelMode;
-  onSelect: (mode: PanelMode) => void;
-}) {
-  const options: { mode: PanelMode; label: string }[] = [
-    { mode: 'send', label: 'Send' },
-    { mode: 'agent', label: 'Kora Agent' },
-    { mode: 'beneficiaries', label: 'Beneficiaries' },
-  ];
-
-  return (
-    <div className="mb-5 grid grid-cols-3 gap-1 rounded-xl border border-rule p-1 lg:hidden">
-      {options.map((option) => (
-        <button
-          key={option.mode}
-          type="button"
-          onClick={() => onSelect(option.mode)}
-          className={cn(
-            'rounded-lg py-2 text-[11px] font-medium transition-colors',
-            mode === option.mode ? 'bg-ink text-paper' : 'text-ink-muted hover:text-ink',
-          )}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
   );
 }

@@ -10,41 +10,41 @@ import { ACCOUNT } from '@/lib/demo-data';
 /**
  * The workspace rail.
  *
- * Picking a rail item swaps the right hand panel rather than the whole page.
- * The reference treats that panel as a workspace that sits beside a dashboard
- * which never goes away, and Kora Agent only makes sense with the account in
- * view: you want to see the balance the agent is about to spend from while it
- * is reading your sentence.
+ * Overview is the resting state. The account, the balance and the activity
+ * are what the dashboard is for, so they hold the whole width until someone
+ * asks for something else.
+ *
+ * The other three items open a workspace panel beside the account rather than
+ * replacing the page, because none of them make sense without the balance in
+ * view: you want to see what you are spending from while you compose a send,
+ * and Kora Agent is reading a sentence about that same money.
  */
 
 export type PanelMode = 'send' | 'agent' | 'beneficiaries';
 
+export const PANEL_TITLES: Record<PanelMode, string> = {
+  send: 'Send money',
+  agent: 'Kora Agent',
+  beneficiaries: 'Beneficiaries',
+};
+
 interface RailItem {
   mode: PanelMode;
-  label: string;
   icon: React.ReactNode;
 }
 
 const ITEMS: RailItem[] = [
-  { mode: 'send', label: 'Send money', icon: <Send className="h-[18px] w-[18px]" strokeWidth={1.8} /> },
-  {
-    mode: 'agent',
-    label: 'Kora Agent',
-    icon: <Sparkles className="h-[18px] w-[18px]" strokeWidth={1.8} />,
-  },
-  {
-    mode: 'beneficiaries',
-    label: 'Beneficiaries',
-    icon: <Users className="h-[18px] w-[18px]" strokeWidth={1.8} />,
-  },
+  { mode: 'send', icon: <Send className="h-[18px] w-[18px]" strokeWidth={1.8} /> },
+  { mode: 'agent', icon: <Sparkles className="h-[18px] w-[18px]" strokeWidth={1.8} /> },
+  { mode: 'beneficiaries', icon: <Users className="h-[18px] w-[18px]" strokeWidth={1.8} /> },
 ];
 
 export function Sidebar({
-  mode,
+  panel,
   onSelect,
 }: {
-  mode: PanelMode;
-  onSelect: (mode: PanelMode) => void;
+  panel: PanelMode | null;
+  onSelect: (panel: PanelMode | null) => void;
 }) {
   return (
     <aside className="flex w-[72px] shrink-0 flex-col items-center border-r border-rule bg-paper py-5">
@@ -64,9 +64,9 @@ export function Sidebar({
       <nav className="flex flex-1 flex-col items-center gap-2">
         <RailButton
           label="Overview"
-          active={false}
+          active={panel === null}
           icon={<LayoutGrid className="h-[18px] w-[18px]" strokeWidth={1.8} />}
-          onClick={() => onSelect('send')}
+          onClick={() => onSelect(null)}
         />
 
         <span className="my-1 h-px w-6 bg-rule" aria-hidden />
@@ -74,10 +74,10 @@ export function Sidebar({
         {ITEMS.map((item) => (
           <RailButton
             key={item.mode}
-            label={item.label}
+            label={PANEL_TITLES[item.mode]}
             icon={item.icon}
-            active={mode === item.mode}
-            onClick={() => onSelect(item.mode)}
+            active={panel === item.mode}
+            onClick={() => onSelect(panel === item.mode ? null : item.mode)}
           />
         ))}
 
