@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** U, the front door
-**Commits:** 146
+**Commits:** 148
 
 ---
 
@@ -180,6 +180,11 @@ Still outstanding, and both small:
 | 2026-09-18 | Card compositing cost | rAF timing over playing video | 120 frames | 60.3fps, worst frame 17.1ms |
 | 2026-09-18 | Card fit at the lg breakpoint | Browser measurement, 1024 | Overflow | None, 384 card in a 416 content box |
 | 2026-09-18 | Card fit at 1280 | Browser measurement | Overflow | None, 208 of clearance |
+| 2026-09-18 | Band contrast across the clip | Frame sampling behind the paragraph | 10 frames | Worst 5.37 at 50 percent tint, passes |
+| 2026-09-18 | Tint sweep for the band | Same 10 frames, four tints | 4 settings | 45 fails at 4.83, 50 passes at 5.37 |
+| 2026-09-18 | Band compositing cost at 64px blur | rAF timing over playing video | 100 frames | 60.1fps, p95 17.2ms, worst 17.6ms |
+| 2026-09-18 | Mask actually applied | Computed style read back | 1 | Confirmed, both spellings supported |
+| 2026-09-18 | Band layout at 1024 and 1440 | Browser measurement | Overflow | None |
 | 2026-09-18 | Smoke after dashboard | `npm run smoke` | 34 checks | All passed, no regression |
 | 2026-09-18 | Typecheck during overview cleanup | `npx tsc --noEmit` | Whole project | Clean, run 5 times |
 | 2026-09-18 | Smoke after overview cleanup | `npm run smoke` | 34 checks | All passed, no regression |
@@ -906,6 +911,38 @@ Pollar to pay out. Every clause is something the app does, checked against the R
 real and not real table rather than written to sound good. The fiat leg is deliberately not
 mentioned, because on testnet it is simulated and a brand panel is exactly the wrong place
 to be imprecise about that.
+
+### Phase U4, the card became a band
+
+Requested: blur a wide band rather than a small card, blend its edges out, make it look
+smooth and premium.
+
+**The card was the right size and the wrong object.** A hard rectangle with a border reads
+as a component dropped on a photograph. The glass is now a wide pane across the panel that
+fades out along its top and bottom rather than ending, so nothing about it says where it
+stops. The sharp footage survives at both ends, which is what narrowing the blur was for.
+
+**The fade is a mask, not a gradient.** This is the part that would be easy to get wrong. A
+gradient of black over the band would darken what it was fading, so the band would lose its
+tint while keeping its blur and the edge would read as a smear. A mask takes the whole layer
+out together, tint and blur at the same rate, and the footage comes back into focus. The
+ramps are long on purpose, 18 percent of the panel at the top and 14 at the bottom, because
+a two or three percent feather still registers as a line.
+
+Both spellings of the property are set. Safari still wants the prefix, and an unprefixed
+mask alone would mean a hard edged band there rather than a missing effect. Confirmed
+applied by reading the computed style back rather than by looking at it.
+
+**Blur 40 to 64, tint 55 to 50.** At 40 the lamp and the pen holder are still readable
+through the band, which looks like a photograph gone soft rather than glass. The lighter
+tint was affordable because the band sits over a darker part of the frame: sweeping four
+tints across the same ten frames, 45 percent fails at 4.83 and 50 passes at 5.37, with the
+headline at 8.01.
+
+Cost of the heavier blur, measured: 60.1fps, p95 frame 17.2ms, worst 17.6ms, no dropped
+frames across 100. One note for whoever measures next, the rAF sampling silently returns
+nothing when the browser pane is hidden, since a hidden document does not animate. A run
+that comes back with four frames is a hidden window, not a stalled page.
 
 ---
 
