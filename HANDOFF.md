@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 129
+**Commits:** 131
 
 ---
 
@@ -263,6 +263,13 @@ Still outstanding, and both small:
 | 2026-09-18 | Typecheck through the motion work | `npx tsc --noEmit` | Whole project | Clean, run 6 times |
 | 2026-09-18 | Production build after retirement | `npm run build` | 22 routes | Clean, operator gone |
 | 2026-09-18 | Smoke after the motion work | `npm run smoke` | 34 checks | All passed, no regression |
+| 2026-09-18 | Portrait payload, before | `stat` over `public/avatars` | 7 files | 17,380,197 bytes served raw |
+| 2026-09-18 | Portrait payload, after | `curl` against the production build | 7 files | 10,527 bytes as AVIF at w=96, all `image/avif` |
+| 2026-09-18 | Optimiser at the declared quality | `curl /_next/image` q=80 | 1 | 400 before `images.qualities`, 200 after |
+| 2026-09-18 | Portraits decode in the browser | `createImageBitmap` on the served bytes | 4 unique | 80x107, 96x144, 96x144, 96x75, all valid |
+| 2026-09-18 | srcset widths per drawn size | Browser DOM | 36 to 44px avatars | w=80 and w=96, the retina pairs, no other widths requested |
+| 2026-09-18 | Typecheck through the optimiser work | `npx tsc --noEmit` | Whole project | Clean, run 4 times |
+| 2026-09-18 | Production build with the optimiser | `npm run build` | 22 routes | Clean, run 3 times |
 
 **Total automated checks passing: 67.** 34 from `npm run smoke`, 33 from `npm run probe:activity`.
 
@@ -602,6 +609,34 @@ One trap worth recording: `press` first declared its transition with the `transi
 shorthand, which resets every part of the property and silently cancelled the colour fade on
 every control it was added to. The markup looked right, because the Tailwind transition class
 was still sitting there being overridden. Longhands fixed it.
+
+### Phase S2, the portraits stopped being a 17MB first paint
+
+The supplied artwork is seven full resolution photographs, 363KB to 5.6MB, 17,380,197 bytes
+across the set, every one of them painted at 44 pixels or less. A plain `img` tag shipped all
+of it so the browser could discard ninety nine percent during a downscale.
+
+`Avatar` now draws through `next/image`. Measured against the running production build, the
+set goes to **10,527 bytes** as AVIF at the 96px variant, which is the retina pair for a 44px
+row. The originals are untouched on disk.
+
+`next.config.ts` names only the widths a portrait is ever drawn at, 40, 48, 80 and 96, rather
+than Next's default sixteen, so a cold deploy transforms each file a handful of times. Cache
+TTL is thirty days. Loading is eager against the default: lazy exists to avoid paying for
+pixels nobody scrolls to, and at a kilobyte and a half it only adds an intersection callback
+between the page and ten kilobytes.
+
+**The trap, and it cost the first attempt.** Next only serves quality values declared in
+`images.qualities`, which defaults to `[75]`, and answers 400 for anything else. A 400 is
+invisible here: the image errors, `Avatar` does exactly what it was built to do and falls
+back to the monogram, and the interface looks entirely correct while serving none of the
+artwork. The build was clean the whole time. Found by measuring the transfer rather than by
+reading the diff, which is the only way this class of bug surfaces.
+
+Worth knowing for the next person: the browser pane backgrounds itself, and a page that is
+not being rendered never decodes an image. `img.decode()` hangs and `naturalWidth` stays 0,
+which looks exactly like a broken image. `createImageBitmap` on the fetched bytes decodes off
+the render path and gives a real answer.
 
 ### Known gaps in the corridor, stated plainly
 
