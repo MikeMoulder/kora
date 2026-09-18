@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 87
+**Commits:** 89
 
 ---
 
@@ -21,12 +21,11 @@ The Nigerian leg runs end to end **in production**: quote at 186.4814327 USDC, F
 issues a real virtual account, pays it itself a few seconds later, and the corridor credits
 on its verification. `requiresOperatorConfirmation` is false on that route now.
 
-**Add the production origin to Pollar.** Build then Domains, add
-`https://kora-mikes-projects-7ac9bd1b.vercel.app`. Until then `/api/pollar/status` on
-production reports `backend: pass, browser: blocked`, and the hand-off screen cannot sign
-anyone in. The backend already works there because the Server API is not origin checked.
+The production origin is on Pollar's Domains list. `/api/pollar/status?deep=1` against
+production reports all three checks passing, and a call from the deployed page itself
+returns 200 `SDK_APPLICATION_CONFIG`.
 
-**Then sign in on the hand-off screen and finish the transfer.** The Pollar leg has still
+**Sign in on the hand-off screen and finish the transfer.** The Pollar leg has still
 never run, so there is still no Stellar transaction hash to show a judge. That hash is the
 single most valuable artefact left to produce.
 
@@ -205,6 +204,11 @@ Still outstanding, and both small:
 | 2026-09-18 | Production Pollar readiness | `/api/pollar/status` | 2 checks | backend pass, browser blocked on Domains |
 | 2026-09-18 | Corridor end to end, production | API, quote to status | 1 full run | Funded, 186.4814327 USDC |
 | 2026-09-18 | Logo asset in production | Canvas pixel sample | 1 | Renders correctly, white on transparent |
+| 2026-09-18 | Production readiness after the domain add | `/api/pollar/status?deep=1` | 3 checks | All pass |
+| 2026-09-18 | Pollar CORS preflight, both origins | `curl` OPTIONS | 2 | 204 with matching allow-origin |
+| 2026-09-18 | Browser SDK call from the deployed page | In-page fetch | 1 | 200 `SDK_APPLICATION_CONFIG` |
+| 2026-09-18 | Readiness probe after the CORS assertion | `/api/pollar/status` | 2 checks | Still pass, now on evidence |
+| 2026-09-18 | Smoke after the probe fix | `npm run smoke` | 34 checks | All passed |
 
 **Total automated checks passing: 34.**
 
