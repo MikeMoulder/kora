@@ -24,7 +24,14 @@ import { ACCOUNT } from '@/lib/demo-data';
  * column of icons that would then need eight.
  */
 
-export type PanelMode = 'send' | 'agent' | 'scheduled' | 'beneficiaries' | 'activity' | 'receive';
+export type PanelMode =
+  | 'send'
+  | 'agent'
+  | 'scheduled'
+  | 'beneficiaries'
+  | 'activity'
+  | 'receive'
+  | 'transaction';
 
 export const PANEL_TITLES: Record<PanelMode, string> = {
   send: 'Send money',
@@ -33,6 +40,12 @@ export const PANEL_TITLES: Record<PanelMode, string> = {
   beneficiaries: 'Beneficiaries',
   activity: 'All activity',
   receive: 'Receive',
+  /*
+   * Opened by clicking a row rather than by the rail, which is why there is a
+   * title here but no entry in ITEMS below. A panel nobody can navigate to
+   * from the rail still needs a heading and a close label.
+   */
+  transaction: 'Transaction',
 };
 
 interface RailItem {

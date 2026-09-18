@@ -23,7 +23,7 @@ import {
   relativeDay,
   type Beneficiary,
 } from '@/lib/demo-data';
-import type { ActivityPayload } from '@/lib/account/activity';
+import type { ActivityItem, ActivityPayload } from '@/lib/account/activity';
 import type { SimulatedPayout } from '@/lib/pollar/offramp';
 
 // ── Rates ─────────────────────────────────────────────────────────────────
@@ -1649,7 +1649,14 @@ interface ReceivingAccount {
  * computed them and a second request to save two kilobytes is a worse trade
  * than sending them.
  */
-export function ActivityPanel({ activity }: { activity: ActivityPayload | null }) {
+export function ActivityPanel({
+  activity,
+  onSelect,
+}: {
+  activity: ActivityPayload | null;
+  /** Open one row's full detail. Optional, so the panel still renders alone. */
+  onSelect?: (tx: ActivityItem) => void;
+}) {
   const rows = activity?.transactions ?? null;
 
   const [inflow, outflow] = useMemo(() => {
@@ -1668,8 +1675,8 @@ export function ActivityPanel({ activity }: { activity: ActivityPayload | null }
       </div>
 
       <p className="mt-3 text-[10px] leading-relaxed text-ink-faint">
-        The last {rows?.length ?? 0} movements on the account. Hover a row for when it
-        happened and what it was for.
+        The last {rows?.length ?? 0} movements on the account. Open one for the reference,
+        the route and, where there is one, the transaction on Stellar.
       </p>
 
       {/*
@@ -1681,7 +1688,13 @@ export function ActivityPanel({ activity }: { activity: ActivityPayload | null }
         {rows === null
           ? Array.from({ length: 6 }, (_, n) => <RowSkeleton key={n} index={n} />)
           : rows.map((tx, n) => (
-              <TransactionRow key={tx.id} tx={tx} index={n} showDate />
+              <TransactionRow
+                key={tx.id}
+                tx={tx}
+                index={n}
+                showDate
+                onSelect={onSelect ? () => onSelect(tx) : undefined}
+              />
             ))}
       </ul>
     </div>

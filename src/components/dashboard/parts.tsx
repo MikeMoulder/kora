@@ -204,6 +204,7 @@ export function TransactionRow({
   tx,
   showDate = false,
   index = 0,
+  onSelect,
 }: {
   tx: ActivityItem;
   /** The panel says when, since it is a history rather than a headline. */
@@ -217,18 +218,24 @@ export function TransactionRow({
    * looking like a page that has not finished loading.
    */
   index?: number;
+  /**
+   * Open the full detail for this movement.
+   *
+   * Optional, and the row stays an inert `li` without it. A row that looks
+   * clickable and is not is worse than one that never offered, so the cursor,
+   * the hover and the focus ring all arrive with the handler rather than
+   * being styled in on the chance that one day there will be one.
+   */
+  onSelect?: () => void;
 }) {
   const incoming = tx.direction === 'in';
   const when = relativeDay(tx.at);
 
-  return (
-    <li
-      style={{ '--i': Math.min(index, 8) } as React.CSSProperties}
-      className="card-row stagger lift flex items-center gap-3 rounded-[18px] bg-paper px-3.5 py-2.5"
-    >
+  const body = (
+    <>
       <Avatar id={tx.avatarId} name={tx.party} kind={tx.kind} size={44} />
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 text-left">
         <div className="truncate text-[14px] font-medium tracking-[-0.01em]">{tx.party}</div>
         {/*
           * The status line carries the tooltip. It holds the timestamp and the
@@ -252,6 +259,33 @@ export function TransactionRow({
       >
         {formatNaira(tx.amount, { signed: true })}
       </span>
+    </>
+  );
+
+  const shell = 'flex w-full items-center gap-3 rounded-[18px] bg-paper px-3.5 py-2.5';
+
+  return (
+    <li
+      style={{ '--i': Math.min(index, 8) } as React.CSSProperties}
+      className={cn('card-row stagger lift', onSelect ? 'p-0' : shell)}
+    >
+      {onSelect ? (
+        <button
+          type="button"
+          onClick={onSelect}
+          aria-label={`${incoming ? 'Received from' : 'Paid'} ${tx.party}, ${formatNaira(
+            Math.abs(tx.amount),
+          )}. Open the full detail.`}
+          className={cn(
+            shell,
+            'press cursor-pointer text-left outline-none focus-visible:ring-2 focus-visible:ring-ink/30',
+          )}
+        >
+          {body}
+        </button>
+      ) : (
+        body
+      )}
     </li>
   );
 }

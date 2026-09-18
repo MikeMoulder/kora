@@ -22,6 +22,7 @@ import {
 } from './panels';
 import { SchedulePanel, useSchedule } from './SchedulePanel';
 import { Avatar, CardLabel, IconButton, RowSkeleton, TransactionRow } from './parts';
+import { TransactionPanel } from './TransactionPanel';
 import { Flag } from '../Flag';
 import { ACCOUNT, formatNaira, relativeDay } from '@/lib/demo-data';
 import { RECENT_LIMIT, type ActivityItem, type ActivityPayload } from '@/lib/account/activity';
@@ -43,6 +44,18 @@ import { RECENT_LIMIT, type ActivityItem, type ActivityPayload } from '@/lib/acc
 export function Dashboard() {
   const [panel, setPanel] = useState<PanelMode | null>(null);
   const [draft, setDraft] = useState<SendDraft | null>(null);
+
+  /*
+   * The row somebody clicked, and where they clicked it from.
+   *
+   * Two pieces of state rather than one, because closing the detail has to put
+   * them back where they were. A row opened from All activity should close
+   * back into All activity, not onto the overview: sending somebody to the top
+   * of the app for reading one line of a list is how a detail view stops being
+   * worth opening.
+   */
+  const [selected, setSelected] = useState<ActivityItem | null>(null);
+  const [cameFrom, setCameFrom] = useState<PanelMode | null>(null);
   const rates = useRates();
   const { balance, refresh: refreshBalance } = useBalance();
   const { activity, refresh: refreshActivity } = useActivity();
@@ -86,7 +99,22 @@ export function Dashboard() {
    */
   const open = (next: PanelMode | null) => {
     setDraft(null);
+    setSelected(null);
     setPanel(next);
+  };
+
+  /** A transaction row, from either list. */
+  const openTransaction = (tx: ActivityItem) => {
+    setDraft(null);
+    setCameFrom(panel);
+    setSelected(tx);
+    setPanel('transaction');
+  };
+
+  /** Back out of the detail, to whichever list opened it. */
+  const closeTransaction = () => {
+    setSelected(null);
+    setPanel(cameFrom);
   };
 
   /** Kora Agent and the beneficiary book both land here. */
@@ -144,14 +172,22 @@ export function Dashboard() {
                   onReceive={() => open('receive')}
                 />
 
-                <Transactions activity={activity} onViewAll={() => open('activity')} />
+                <Transactions
+                  activity={activity}
+                  onViewAll={() => open('activity')}
+                  onSelect={openTransaction}
+                />
               </div>
 
               <SpendChart activity={activity} />
             </main>
 
             {panel !== null && (
-              <PanelFrame key={panel} title={PANEL_TITLES[panel]} onClose={() => open(null)}>
+              <PanelFrame
+                key={panel}
+                title={PANEL_TITLES[panel]}
+                onClose={panel === 'transaction' ? closeTransaction : () => open(null)}
+              >
                 {panel === 'send' && (
                   <SendPanel
                     rates={rates}
@@ -165,7 +201,24 @@ export function Dashboard() {
                 )}
                 {panel === 'agent' && <AgentPanel onCompose={compose} />}
                 {panel === 'beneficiaries' && <BeneficiaryPanel onCompose={compose} />}
-                {panel === 'activity' && <ActivityPanel activity={activity} />}
+                {panel === 'activity' && (
+                  <ActivityPanel activity={activity} onSelect={openTransaction} />
+                )}
+                {panel === 'transaction' && selected && (
+                  <TransactionPanel
+                    tx={selected}
+                    scheduled={
+                      [...(schedule?.held ?? []), ...(schedule?.done ?? [])].find(
+                        (p) => p.reference === selected.id.replace(/-REVERSAL$/, ''),
+                      ) ?? null
+                    }
+                    onBack={
+                      cameFrom === 'activity'
+                        ? { label: 'All activity', go: closeTransaction }
+                        : undefined
+                    }
+                  />
+                )}
                 {panel === 'receive' && <ReceivePanel onCredited={refresh} />}
               </PanelFrame>
             )}
@@ -496,9 +549,11 @@ function Action({
 function Transactions({
   activity,
   onViewAll,
+  onSelect,
 }: {
   activity: ActivityPayload | null;
   onViewAll: () => void;
+  onSelect: (tx: ActivityItem) => void;
 }) {
   const rows = activity?.transactions.slice(0, RECENT_LIMIT) ?? null;
 
@@ -523,7 +578,9 @@ function Transactions({
       <ul className="mt-3 space-y-2">
         {rows === null
           ? Array.from({ length: RECENT_LIMIT }, (_, n) => <RowSkeleton key={n} index={n} />)
-          : rows.map((tx, n) => <TransactionRow key={tx.id} tx={tx} index={n} />)}
+          : rows.map((tx, n) => (
+              <TransactionRow key={tx.id} tx={tx} index={n} onSelect={() => onSelect(tx)} />
+            ))}
       </ul>
     </div>
   );

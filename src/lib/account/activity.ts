@@ -50,6 +50,14 @@ export interface ActivityItem {
    * whole argument of the project.
    */
   real: boolean;
+  /**
+   * Who told us this movement happened, carried straight off the ledger.
+   *
+   * Only real entries have one. The opening history was invented by this file,
+   * so it has no source and the detail view says so rather than naming a
+   * partner that was never involved.
+   */
+  source?: LedgerEntry['source'];
 }
 
 // ── Spend series ──────────────────────────────────────────────────────────
@@ -260,6 +268,7 @@ function fromLedger(entry: LedgerEntry): ActivityItem {
     at: entry.at,
     avatarId: entry.avatarId ?? avatarIdFor(recovered.party),
     real: true,
+    source: entry.source,
   };
 }
 
