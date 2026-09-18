@@ -40,12 +40,14 @@ export interface SchedulePayload {
  *
  * Whether it does the second job depends on the deployment, and the server
  * decides rather than this file. With no runner secret set the browser is the
- * scheduler, which is the development default and a real limitation. With one
- * set, the route refuses browsers outright and something external is expected
- * to call it; this hook then reads and never runs.
+ * scheduler, which is the development default. With one set, the route refuses
+ * browsers outright and a timer on a host we control calls it every minute;
+ * this hook then reads and never runs. Production is the second case.
  *
- * Either way the panel says which mode is live, because a scheduler that
- * quietly is not running is worse than one that says it is not.
+ * The panel used to print which of the two was live. It no longer does. The
+ * browser-driven mode is a development convenience rather than a way anybody
+ * runs this, and a panel that explains it is teaching the reader about a
+ * deployment that does not exist.
  *
  * The interval is a minute: long enough that an open tab is not hammering a
  * route that spends from a treasury, short enough that "due in a minute"
@@ -235,24 +237,23 @@ export function SchedulePanel({
       )}
 
       {/*
-        * The limitation, on screen rather than in a comment, and only when
-        * there is one.
+        * One warning left, and it is about losing records rather than about
+        * who fires them.
         *
-        * Two facts somebody needs and neither is flattering: nothing runs
-        * unless this page is open, and without Redis the list does not survive
-        * a restart. Both are the kind of thing that otherwise gets discovered
-        * during a demo, which is the worst possible moment to find out.
+        * The note that used to sit here described the browser driving due
+        * payments. A timer on a host we control does that now, every minute,
+        * so the sentence described a development default rather than the
+        * product, and a panel explaining a problem the deployment does not
+        * have is a panel teaching somebody the wrong thing about it.
         *
-        * When a real scheduler is running and the store is durable, neither
-        * applies, and the panel says nothing rather than reassuring somebody
-        * about a problem they do not have.
+        * Durability is a different question and still worth saying out loud,
+        * because a store that forgets is a store that forgets money somebody
+        * has already had taken off their balance. Production has Redis, so
+        * this stays silent there too.
         */}
-      {(schedule.runner !== 'cron' || !schedule.durable) && (
+      {!schedule.durable && (
         <p className="mt-5 text-[10px] leading-relaxed text-ink-faint">
-          {schedule.runner !== 'cron' &&
-            'Due payments are sent while this dashboard is open, checked every minute. There is no scheduler running behind it, so a payment due overnight goes out when somebody next opens this page.'}
-          {!schedule.durable &&
-            ' This list is held in the server process and will not survive a restart.'}
+          This list is held in the server process and will not survive a restart.
         </p>
       )}
     </div>
