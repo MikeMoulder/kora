@@ -8,9 +8,9 @@ import {
   Check,
   Copy,
   Search,
-  Sparkles,
   Star,
 } from 'lucide-react';
+import Image from 'next/image';
 import { cn, copyText } from '@/lib/utils';
 import { Avatar, RowSkeleton, TransactionRow } from './parts';
 import { Flag } from '../Flag';
@@ -759,6 +759,16 @@ const AGENT_EXAMPLES = [
   'Send ₦5,000 to Diego Rojas in Bolivia for the launch film',
 ];
 
+/**
+ * The slots the parser fills, in the order the result table prints them.
+ *
+ * Kept beside the examples rather than derived from the parsed response,
+ * because this list has to exist before there is a response to derive it
+ * from. It is the one duplication in the panel, so it is worth saying out
+ * loud: if `Slot` rows are added below, add them here.
+ */
+const AGENT_SLOTS = ['Recipient', 'Destination', 'Amount', 'Purpose', 'Timing'];
+
 interface ParsedIntent {
   intent: {
     recipientName: string | null;
@@ -775,6 +785,12 @@ interface ParsedIntent {
     status: string;
     message: string;
     selected: { countryName: string; railLabel: string; readiness: string; country: string } | null;
+    /** Where the money lands. Null until the sentence names a country. */
+    destination: {
+      country: string;
+      countryName: string | null;
+      settledBy: 'pollar' | 'unsupported';
+    } | null;
   };
 }
 
@@ -825,15 +841,7 @@ export function AgentPanel({ onCompose }: { onCompose?: (draft: SendDraft) => vo
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2.5">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink text-paper">
-          <Sparkles className="h-4 w-4" strokeWidth={1.8} />
-        </span>
-        <div>
-          <div className="text-sm font-semibold">Kora Agent</div>
-          <div className="text-[11px] text-ink-faint">Say it, do not fill it in</div>
-        </div>
-      </div>
+      <AgentIdentity />
 
       <form
         onSubmit={(e) => {
@@ -869,8 +877,8 @@ export function AgentPanel({ onCompose }: { onCompose?: (draft: SendDraft) => vo
       </form>
 
       {!parsed && !busy && !error && (
-        <div className="mt-4 space-y-1.5">
-          <div className="text-[10px] uppercase tracking-[0.12em] text-ink-faint">Try</div>
+        <div className="mt-5 space-y-1.5">
+          <SectionLabel>Try</SectionLabel>
           {AGENT_EXAMPLES.map((example) => (
             <button
               key={example}
@@ -879,11 +887,13 @@ export function AgentPanel({ onCompose }: { onCompose?: (draft: SendDraft) => vo
                 setText(example);
                 run(example);
               }}
-              className="block w-full rounded-lg border border-rule px-3 py-2 text-left text-xs text-ink-muted transition-colors hover:border-ink hover:text-ink"
+              className="block w-full rounded-lg border border-rule px-3 py-2 text-left text-xs leading-relaxed text-ink-muted transition-colors hover:border-ink hover:text-ink"
             >
               {example}
             </button>
           ))}
+
+          <AgentRestingState />
         </div>
       )}
 
@@ -894,9 +904,7 @@ export function AgentPanel({ onCompose }: { onCompose?: (draft: SendDraft) => vo
       {parsed && (
         <div className="mt-5 flex min-h-0 flex-1 flex-col">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-[0.12em] text-ink-faint">
-              Understood as
-            </span>
+            <SectionLabel>Understood as</SectionLabel>
             <span className="rounded-md border border-rule px-1.5 py-0.5 text-[10px] text-ink-muted">
               {parsed.source === 'gemini' ? 'Gemini and rules' : 'Rule parser'}
             </span>
@@ -904,7 +912,24 @@ export function AgentPanel({ onCompose }: { onCompose?: (draft: SendDraft) => vo
 
           <dl className="mt-2.5 divide-y divide-rule rounded-xl border border-rule">
             <Slot label="Recipient" value={parsed.intent.recipientName} />
-            <Slot label="Destination" value={parsed.intent.destinationCountry} />
+            {/*
+              * The name, not the code.
+              *
+              * This row printed "BO" because that is what the parser produces
+              * and the panel was rendering the field straight through. An ISO
+              * code is the correct thing to carry between the model and the
+              * corridor engine and the wrong thing to show the person paying,
+              * who did not type a code and has no reason to read one. The
+              * resolver now returns the name beside it; the code is still what
+              * everything downstream uses.
+              */}
+            <Slot
+              label="Destination"
+              value={
+                parsed.resolution.destination?.countryName ??
+                parsed.intent.destinationCountry
+              }
+            />
             <Slot
               label="Amount"
               value={
@@ -977,13 +1002,120 @@ export function AgentPanel({ onCompose }: { onCompose?: (draft: SendDraft) => vo
           </button>
 
           <p className="mt-3 text-[10px] leading-relaxed text-ink-faint">
-            The agent filled that object and stopped. It holds no signer and cannot move
-            money. It hands the fields to the send form, where you read them and confirm a
-            quote before anything leaves the balance.
+            That is the whole of what the agent did. Review opens the send form with those
+            fields already in it, and nothing leaves the balance until you confirm a quote
+            on the next screen.
           </p>
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Who the agent is, at the top of its own panel.
+ *
+ * The name is deliberately absent. `PanelFrame` already prints "Kora Agent"
+ * an inch above this, and the old header repeated it, so the first two things
+ * anybody read on opening the panel were the same two words. The portrait
+ * carries the identity instead and the line beside it does the work the name
+ * was not doing.
+ *
+ * The portrait replaces a lucide sparkle in a black square. Two reasons, and
+ * the second is the real one. A sparkle is the house glyph for "there is a
+ * model behind this" across the entire category, so it identifies the feature
+ * without identifying this feature. And the app already draws every
+ * counterparty as a portrait: putting the agent in the same slot says it is
+ * another party to the transaction, which is exactly the claim the panel then
+ * spends the rest of its height qualifying.
+ *
+ * Not `Avatar`. That component is for counterparties, keyed by a file stem in
+ * `public/avatars` with a monogram behind it for the ones who have no picture.
+ * The agent is not in that book, has exactly one portrait, and would fall back
+ * to the initials "KA" in a filled disc if the file were missing, which reads
+ * as a person nobody can name. A plain square tile with the artwork's own
+ * background showing through is the honest object.
+ */
+function AgentIdentity() {
+  return (
+    <div className="flex items-center gap-3">
+      <Image
+        src="/kora-agent.png"
+        alt=""
+        aria-hidden
+        width={44}
+        height={44}
+        quality={82}
+        /*
+         * Eager for the same reason the counterparty portraits are: the panel
+         * is not in the DOM until somebody opens it, so nothing is being
+         * deferred except this one image at the top of what they just asked
+         * for.
+         */
+        loading="eager"
+        className="h-11 w-11 shrink-0 rounded-xl object-cover"
+      />
+      <div className="min-w-0">
+        <div className="text-[13px] font-semibold tracking-[-0.01em]">
+          Say it, do not fill it in
+        </div>
+        <div className="mt-0.5 text-[11px] leading-snug text-ink-muted">
+          Reads one sentence into a payment. Cannot send one.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The five fields the parser fills, shown before anything is typed.
+ *
+ * The panel used to end at the examples, and below them sat two thirds of a
+ * column of nothing. Filling it with the output's own shape is the version
+ * that earns the space: these are the exact five rows the "Understood as"
+ * table prints, so the result is a table somebody has already seen the frame
+ * of rather than a structure that appears from nowhere.
+ *
+ * It also teaches the input, which is the harder job. "Say it, do not fill it
+ * in" does not tell anyone what to say, and a free text box with no stated
+ * vocabulary is a box most people type one word into. Naming the slots names
+ * the things worth putting in the sentence.
+ */
+function AgentRestingState() {
+  return (
+    <div className="pt-4">
+      <SectionLabel>Fields it fills</SectionLabel>
+
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {AGENT_SLOTS.map((slot) => (
+          <span
+            key={slot}
+            className="rounded-md border border-rule px-2 py-1 text-[10px] text-ink-muted"
+          >
+            {slot}
+          </span>
+        ))}
+      </div>
+
+      <p className="mt-4 text-[10px] leading-relaxed text-ink-faint">
+        It fills those five fields and stops. It holds no signer, so the only thing it can
+        do with a sentence about money is hand the fields to the send form, where you read
+        them and confirm a quote before anything leaves the balance.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The panel's section heading.
+ *
+ * Three places were spelling the same ten utility classes by hand and one of
+ * them had already drifted, which is the usual way a set of headings stops
+ * lining up.
+ */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[10px] uppercase tracking-[0.12em] text-ink-faint">{children}</div>
   );
 }
 
