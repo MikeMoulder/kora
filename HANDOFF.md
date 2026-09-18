@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 133
+**Commits:** 134
 
 ---
 
@@ -277,6 +277,11 @@ Still outstanding, and both small:
 | 2026-09-18 | Corridor through the browser | Manual, form to completion | 1 full run | Three legs rendered, live probe shown, `KORA-PAY-W7RCPE` |
 | 2026-09-18 | Smoke after the payout leg | `npm run smoke` | 34 checks | All passed, no regression |
 | 2026-09-18 | Activity after the payout leg | `npm run probe:activity` | 33 checks | All passed, no regression |
+| 2026-09-18 | Icon scale at tab sizes | Rendered 16 and 32, magnified 6x | 3 candidates | 62% muddy, 74% crowded, 68% chosen |
+| 2026-09-18 | Icon set served | Browser fetch | 3 files | `favicon.ico` 200 image/x-icon, `icon.png` and `apple-icon.png` 200 image/png |
+| 2026-09-18 | ICO container | Parsed the bytes back | 2 entries | 32x32 and 16x16, both valid PNG, offsets within the file |
+| 2026-09-18 | Link tags emitted | Browser DOM | 3 tags | icon 32x32, icon 512x512, apple-touch-icon 180x180 |
+| 2026-09-18 | Titles carry no em dash | Browser and `curl /signin` | 2 pages | `KORA \| the African corridor for Pollar`, `Sign in \| KORA` |
 
 **Total automated checks passing: 107.** 34 from `npm run smoke`, 33 from `npm run probe:activity`, 40 from `npm run e2e`.
 
