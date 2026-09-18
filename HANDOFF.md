@@ -5,11 +5,23 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 72
+**Commits:** 76
 
 ---
 
 ## Next task
+
+**Sign in to Pollar on the hand-off screen and finish the transfer.**
+
+This is the flagship requirement and it is now one click from done. The African leg runs
+end to end: intent parsed, corridor resolved, quote priced from the live rate, funding
+reference issued, payment reported, settled. The hand-off screen renders and offers
+Continue with Google. Nobody has clicked it yet, so the Pollar transfer has still never
+run and there is still no Stellar transaction hash to show a judge.
+
+Walk it at `/send?intent=Send ₦250,000 to Carlos Mamani in Bolivia for the brand system.`
+
+After that, deploy, then Phase N8 below.
 
 **Phase N8. Restyle the operator console.**
 
@@ -50,22 +62,40 @@ react-router-dom swap and the Suspense boundary were confirmed correct.
 
 ---
 
-## Blocked, waiting on the user
+## Pollar, unblocked
 
-These are dashboard settings at dashboard.pollar.xyz. Nothing in the code can work around
-them.
+Cleared on 2026-09-18. Every check the readiness probe runs now passes.
 
-| Setting | Where | Why it matters |
+| Setting | Where | State |
 | --- | --- | --- |
-| Add `http://localhost:3000` | Build then Domains | Every SDK call returns 403 `ORIGIN_NOT_ALLOWED` until this is set |
-| Fund the reserve wallet | Treasury then Account Funding | New wallets cannot meet the Stellar base reserve |
-| Turn on sponsorship | Treasury then Sponsorship | Without it the user pays their own network fee |
-| Add USDC | Treasury then Tokens and Trustlines | Without it the transfer fails with `op_no_trust` |
+| `http://localhost:3000` | Build then Domains | Done. Browser SDK returns 200 `SDK_APPLICATION_CONFIG` |
+| Fund the reserve wallet | Treasury then Account Funding | Done. Wallet provisioning returns 201 |
+| Turn on sponsorship | Treasury then Sponsorship | Done. Provisioned accounts come back sponsored |
+| Add USDC | Treasury then Tokens and Trustlines | Done. New wallets carry a USDC trustline at creation |
 
-Optional: `GEMINI_API_KEY` in `.env.local`, from aistudio.google.com/apikey. The app works
-without it and says which parser ran.
+Verify any time with `curl http://localhost:3000/api/pollar/status` — add `?deep=1` to
+exercise wallet provisioning, which registers a throwaway user each call.
 
-Also waiting on the replacement image for the sign in brand panel.
+**What the investigation found.** Pollar has two doors that fail independently. The browser
+SDK talks to `sdk.api.pollar.xyz` with the publishable key and is checked against the
+allowed origins. The Server API talks to `server.api.pollar.xyz` with the secret key and is
+not origin checked at all, so backend calls worked throughout, even while the dashboard was
+empty. The 403 was never a CORS problem: it rejected with and without an Origin header,
+because the allowed list was empty rather than wrong.
+
+Two docs claims did not survive contact with the live API. `WALLET_CREATION_FAILED` is
+documented as a transient Stellar fault and is in fact what an unfunded reserve wallet
+returns, three times out of three. And wallet provisioning returns `walletAddress` and
+`funded` on the user object, not the nested `wallet.publicKey` the rest of the reference
+implies.
+
+Still outstanding, and both small:
+
+- Add the deployed URL to Build then Domains once the app is deployed. Localhost alone will
+  not serve judges.
+- Optional `GEMINI_API_KEY` in `.env.local`, from aistudio.google.com/apikey. The app works
+  without it and says which parser ran.
+- Still waiting on the replacement image for the sign in brand panel.
 
 A watcher ran for 30 minutes and timed out with the origin still blocked, so none of the
 Pollar settings above have been applied yet. Until then every page that mounts the Pollar
@@ -126,6 +156,17 @@ provider logs a 403 in the console.
 | 2026-09-18 | Draft clearing | Browser | Rail open after a handover | Back to the 100,000 default, no stale amount |
 | 2026-09-18 | Convert panel, 375px | Browser measurement | Overflow, chip clipping | None |
 | 2026-09-18 | Receive panel, 375px | Browser measurement | Overflow, value clipping | None |
+| 2026-09-18 | Pollar SDK API, no Origin | `curl` | 1 | 403 `ORIGIN_NOT_ALLOWED` |
+| 2026-09-18 | Pollar SDK API, with Origin | `curl` | 1 | 403, so not a CORS fault |
+| 2026-09-18 | Pollar Server API, secret key | `curl` tokens/verify | 1 | 401 invalid token, key accepted |
+| 2026-09-18 | Pollar user registration | `curl` /v1/users | 1 | 201 `SERVER_USER_REGISTERED` |
+| 2026-09-18 | Wallet provisioning, empty reserve | `curl` /v1/users/with-wallet | 3 | 502 all three, not transient |
+| 2026-09-18 | Wallet provisioning, funded reserve | `curl` /v1/users/with-wallet | 1 | 201 `SERVER_USER_WALLET_CREATED` |
+| 2026-09-18 | Provisioned wallet on chain | Horizon testnet | 1 | Sponsored, USDC trustline present |
+| 2026-09-18 | Browser SDK after the domain fix | Browser fetch, real key | 1 | 200 `SDK_APPLICATION_CONFIG` |
+| 2026-09-18 | Console across a clean reload | Browser | Error count | 50 before, 50 after, no new errors |
+| 2026-09-18 | Readiness probe | `/api/pollar/status?deep=1` | 3 checks | All pass |
+| 2026-09-18 | Corridor walkthrough after unblock | Browser, intent to hand-off | 1 full run | Settled, hand-off screen reached |
 
 **Total automated checks passing: 34.**
 
