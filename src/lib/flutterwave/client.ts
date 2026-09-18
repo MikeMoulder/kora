@@ -242,6 +242,116 @@ export function usableExpiry(raw: string | null, minimumMs = 60_000): string | n
   return new Date(ms).toISOString();
 }
 
+// ── Personal deposit account ──────────────────────────────────────────────
+
+/**
+ * The BVN used for static accounts in test mode.
+ *
+ * Flutterwave's own documentation uses 1234567890, which their API then
+ * rejects with "BVN must be 11 digits long" because that example is ten
+ * digits. Eleven is the real NUBAN BVN length, so the placeholder here is
+ * padded to match.
+ *
+ * It is a placeholder either way, and only ever sent against test keys: see
+ * the guard in `createPersonalDepositAccount`.
+ */
+const TEST_BVN = process.env.FLW_TEST_BVN ?? '12345678901';
+
+export interface PersonalAccountInput {
+  /** Stable per user. Flutterwave keys the account to it. */
+  email: string;
+  txRef: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber?: string;
+  narration?: string;
+  /**
+   * Bank Verification Number. Required by Flutterwave for a static account,
+   * and in production it comes from KYC rather than from us.
+   */
+  bvn?: string;
+}
+
+export interface PersonalDepositAccount {
+  accountNumber: string;
+  bankName: string;
+  /** Flutterwave's handle for the account, needed to look it up again. */
+  orderRef: string;
+  flwRef: string;
+  /** The name a payer sees when they check the account before sending. */
+  note: string | null;
+}
+
+interface VirtualAccountShape {
+  account_number?: string;
+  bank_name?: string;
+  order_ref?: string;
+  flw_ref?: string;
+  note?: string;
+  expiry_date?: string;
+}
+
+/**
+ * A permanent NUBAN of the account holder's own.
+ *
+ * This is the "static" virtual account in Flutterwave's language: no amount,
+ * no expiry, reusable. It is what a personal deposit account actually is, as
+ * opposed to the one-shot account the corridor opens per payment, which is
+ * bound to a single quote and dies with it.
+ *
+ * Flutterwave requires a BVN or NIN to issue one, because a permanent
+ * Nigerian account number is tied to a verified identity by regulation. We
+ * have no KYC, so in test mode the documented placeholder BVN is sent and the
+ * interface says the account is issued against a test identity.
+ *
+ * Against live keys with no real BVN this refuses outright. Sending a made up
+ * BVN to a production ledger would be inventing an identity, which is a
+ * different kind of wrong from a demo shortcut.
+ */
+export function createPersonalDepositAccount(input: PersonalAccountInput) {
+  const bvn = input.bvn ?? (isTestMode() ? TEST_BVN : undefined);
+
+  if (!bvn) {
+    return Promise.resolve<FlutterwaveResult<PersonalDepositAccount>>({
+      ok: false,
+      code: 'BVN_REQUIRED',
+      message:
+        'A permanent account needs a verified BVN, which only KYC can supply. Refusing to send a placeholder against live keys.',
+      status: 0,
+    });
+  }
+
+  return call<PersonalDepositAccount>(
+    '/virtual-account-numbers',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        email: input.email,
+        tx_ref: input.txRef,
+        is_permanent: true,
+        firstname: input.firstName,
+        lastname: input.lastName,
+        phonenumber: input.phoneNumber,
+        narration: input.narration,
+        bvn,
+      }),
+    },
+    (body) => {
+      const account = body.data as VirtualAccountShape | undefined;
+
+      if (!account?.account_number || !account.bank_name) return null;
+
+      return {
+        accountNumber: account.account_number,
+        bankName: account.bank_name,
+        orderRef: account.order_ref ?? '',
+        flwRef: account.flw_ref ?? '',
+        note: account.note ?? null,
+      };
+    },
+  );
+}
+
 // ── Verification ──────────────────────────────────────────────────────────
 
 export interface VerifiedTransaction {

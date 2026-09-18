@@ -610,23 +610,54 @@ function BeneficiaryPicker({
 // ── Receive ───────────────────────────────────────────────────────────────
 
 /**
- * Receive.
+ * The account holder's own deposit account, as issued by Flutterwave.
  *
  * Three fields and a way to copy them, which is the whole of a Nigerian
- * inbound transfer: a payer opens their bank app, types a bank, a NUBAN and
- * checks the name that comes back. Anything else on this panel would be
- * decoration.
+ * inbound transfer: a payer opens their bank app, types a bank and a NUBAN,
+ * and checks the name that comes back. Anything else here would be decoration.
  *
  * Deliberately no QR. Nigeria has no scannable standard behind NIP the way
- * Kenya has USSD behind M-Pesa, so a code here would be a picture of a
- * payment method that does not exist. The M-Pesa corridor emits a real
- * scannable because there is a real thing to scan.
+ * Kenya has USSD behind M-Pesa, so a code here would picture a payment method
+ * that does not exist. The M-Pesa corridor emits a real scannable because
+ * there is a real thing to scan.
  */
+
+interface ReceivingAccount {
+  provider: 'flutterwave' | 'simulated';
+  mode: 'test' | 'live' | 'simulated';
+  accountNumber: string;
+  bankName: string;
+  accountName: string;
+  rail: string;
+  testIdentity: boolean;
+  note: string | null;
+}
+
 export function ReceivePanel() {
-  const { receiving } = ACCOUNT;
+  const [account, setAccount] = useState<ReceivingAccount | null>(null);
+  const [failed, setFailed] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [refused, setRefused] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch('/api/account/receiving')
+      .then((r) => r.json())
+      .then((body) => {
+        if (cancelled) return;
+        if (body?.ok) setAccount(body.data as ReceivingAccount);
+        else setFailed(true);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(
     () => () => {
@@ -648,7 +679,9 @@ export function ReceivePanel() {
     if (ok) timer.current = setTimeout(() => setCopied(null), 1600);
   }, []);
 
-  const full = `${receiving.accountName}\n${receiving.bankName}\n${receiving.accountNumber}`;
+  const full = account
+    ? `${account.accountName}\n${account.bankName}\n${account.accountNumber}`
+    : '';
 
   return (
     <div className="flex h-full flex-col">
@@ -660,56 +693,105 @@ export function ReceivePanel() {
           <div className="text-sm font-semibold">Your naira account</div>
           <div className="flex items-center gap-1.5 text-[11px] text-ink-faint">
             <Flag code={ACCOUNT.country} size={11} />
-            {receiving.rail}
+            {account ? account.rail : 'Opening your account'}
           </div>
         </div>
       </div>
 
-      <dl className="mt-5 divide-y divide-rule rounded-xl border border-rule">
-        <CopyRow
-          label="Account number"
-          value={receiving.accountNumber}
-          mono
-          copied={copied === 'number'}
-          onCopy={() => copy('number', receiving.accountNumber)}
-        />
-        <CopyRow
-          label="Bank"
-          value={receiving.bankName}
-          copied={copied === 'bank'}
-          onCopy={() => copy('bank', receiving.bankName)}
-        />
-        <CopyRow
-          label="Account name"
-          value={receiving.accountName}
-          copied={copied === 'name'}
-          onCopy={() => copy('name', receiving.accountName)}
-        />
-      </dl>
+      {!account && !failed && (
+        <div className="mt-5 space-y-2" aria-live="polite">
+          <span className="sr-only">Opening your deposit account</span>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-[58px] animate-pulse rounded-xl bg-paper-sunk" />
+          ))}
+        </div>
+      )}
 
-      <button
-        type="button"
-        onClick={() => copy('all', full)}
-        className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper transition-colors hover:bg-ink-soft"
-      >
-        {copied === 'all' ? (
-          <Check className="h-4 w-4" strokeWidth={2} />
-        ) : (
-          <Copy className="h-4 w-4" strokeWidth={1.8} />
-        )}
-        {copied === 'all' ? 'Copied' : 'Copy all three'}
-      </button>
-
-      {refused && (
-        <p className="mt-3 rounded-lg border border-ink px-3 py-2.5 text-[11px] leading-relaxed">
-          This browser refused the clipboard. Select the number above and copy it by hand.
+      {failed && (
+        <p className="mt-5 rounded-lg border border-ink px-3 py-2.5 text-xs leading-relaxed">
+          Could not reach your deposit account. Nothing is wrong with the account itself,
+          so try again in a moment.
         </p>
       )}
 
+      {account && (
+        <>
+          <dl className="mt-5 divide-y divide-rule rounded-xl border border-rule">
+            <CopyRow
+              label="Account number"
+              value={account.accountNumber}
+              mono
+              copied={copied === 'number'}
+              onCopy={() => copy('number', account.accountNumber)}
+            />
+            <CopyRow
+              label="Bank"
+              value={account.bankName}
+              copied={copied === 'bank'}
+              onCopy={() => copy('bank', account.bankName)}
+            />
+            <CopyRow
+              label="Account name"
+              value={account.accountName}
+              copied={copied === 'name'}
+              onCopy={() => copy('name', account.accountName)}
+            />
+          </dl>
+
+          <button
+            type="button"
+            onClick={() => copy('all', full)}
+            className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper transition-colors hover:bg-ink-soft"
+          >
+            {copied === 'all' ? (
+              <Check className="h-4 w-4" strokeWidth={2} />
+            ) : (
+              <Copy className="h-4 w-4" strokeWidth={1.8} />
+            )}
+            {copied === 'all' ? 'Copied' : 'Copy all three'}
+          </button>
+
+          {refused && (
+            <p className="mt-3 rounded-lg border border-ink px-3 py-2.5 text-[11px] leading-relaxed">
+              This browser refused the clipboard. Select the number above and copy it by hand.
+            </p>
+          )}
+
+          <Provenance account={account} />
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Who issued the number, and what it can actually do.
+ *
+ * A real account number issued against a placeholder identity, in a sandbox,
+ * that does not move the balance shown on the dashboard, is three separate
+ * claims. Collapsing them into "your account" would be the easy lie.
+ */
+function Provenance({ account }: { account: ReceivingAccount }) {
+  if (account.provider === 'simulated') {
+    return (
       <p className="mt-3 text-[10px] leading-relaxed text-ink-faint">
-        A sample account, so nothing can actually land in it. The naira rail KORA does run
-        is the one Send funds through, and it issues its own collections account when you
-        reach a quote.
+        A sample account, so nothing can land in it. Add a Flutterwave key and KORA issues a
+        real one here instead.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-1.5">
+      <div className="inline-flex items-center gap-1.5 rounded-md border border-rule px-2 py-0.5 text-[10px] text-ink-muted">
+        Issued by Flutterwave
+        {account.mode === 'test' && ' · test mode'}
+      </div>
+      <p className="text-[10px] leading-relaxed text-ink-faint">
+        {account.testIdentity
+          ? 'A real Flutterwave account, opened against a placeholder BVN because KORA has no KYC step yet. In production that number comes from the account holder.'
+          : 'Opened against the account holder’s verified identity.'}{' '}
+        Deposits into it do not move the balance above, which is still sample data.
       </p>
     </div>
   );
