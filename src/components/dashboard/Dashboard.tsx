@@ -55,7 +55,14 @@ export function Dashboard() {
      * collapse instead, so a tall card simply starts at the top.
      */
     <div className="canvas flex min-h-screen justify-center p-0 lg:p-6 xl:p-9 2xl:p-14">
-      <div className="surface my-auto flex min-h-screen w-full max-w-[1240px] overflow-hidden border-rule lg:min-h-0 lg:rounded-[28px] lg:border lg:shadow-[0_2px_4px_rgba(15,17,16,0.04),0_24px_60px_-20px_rgba(15,17,16,0.18)]">
+      <div
+        className={cn(
+          // One or the other, never both: they each set `background`, so the
+          // winner would be stylesheet order rather than intent.
+          panel === null ? 'surface-wide' : 'surface',
+          'my-auto flex min-h-screen w-full max-w-[1240px] overflow-hidden border-rule lg:min-h-0 lg:rounded-[28px] lg:border lg:shadow-[0_2px_4px_rgba(15,17,16,0.04),0_24px_60px_-20px_rgba(15,17,16,0.18)]',
+        )}
+      >
         <div className="hidden lg:flex">
           <Sidebar panel={panel} onSelect={open} />
         </div>

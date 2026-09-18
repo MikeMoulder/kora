@@ -115,6 +115,25 @@ body {
     var(--color-paper);
 }
 
+/*
+ * The same wash, given the whole surface to travel across.
+ *
+ * `.surface` fades out by the middle because it was drawn for a card with a
+ * white workspace panel on the right, and colour running under that panel
+ * would fight it. Overview has no panel, so the wash has the full width and
+ * dying halfway just looks like it ran out. Corner to corner instead: heavy
+ * at the top left, thinnest through the middle, picking up again bottom
+ * right so the far corner is not flat white.
+ */
+.surface-wide {
+  background:
+    radial-gradient(64rem 44rem at -6% -10%, rgba(168, 213, 186, 0.58) 0%, transparent 72%),
+    radial-gradient(54rem 40rem at 104% 104%, rgba(168, 213, 186, 0.4) 0%, transparent 70%),
+    radial-gradient(38rem 30rem at 50% 120%, rgba(168, 213, 186, 0.2) 0%, transparent 64%),
+    linear-gradient(134deg, rgba(168, 213, 186, 0.28) 0%, rgba(168, 213, 186, 0.06) 52%, rgba(168, 213, 186, 0.2) 100%),
+    var(--color-paper);
+}
+
 /* ── Ownership language ──────────────────────────────────────────────────
  * Three classes carrying the rule above, so no component restates a border
  * and the language cannot drift from screen to screen.
