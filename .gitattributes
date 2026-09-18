@@ -1,0 +1,21 @@
+# Line endings.
+#
+# This repository is developed on Windows with core.autocrlf=true, which
+# rewrites LF to CRLF on checkout. That is harmless for everything here except
+# the one file that has to run on a Linux host.
+#
+# scripts/kora-runner.sh is installed on a VPS and executed by systemd. With
+# CRLF endings its shebang reads `/usr/bin/env bash\r`, and the kernel looks for
+# an interpreter whose name ends in a carriage return. The error is
+# "bad interpreter: No such file or directory", which points at bash rather than
+# at the line endings and sends people looking in the wrong place.
+#
+# The working tree happened to hold LF when the script was first copied to the
+# VPS, so this was not hit. A fresh clone would have hit it.
+*.sh text eol=lf
+
+# Same reasoning for anything else a Linux host executes or parses verbatim.
+*.bash text eol=lf
+Dockerfile text eol=lf
+*.service text eol=lf
+*.timer text eol=lf
