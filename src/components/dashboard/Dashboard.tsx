@@ -88,7 +88,6 @@ export function Dashboard() {
                     onConvert={() => open('convert')}
                     onReceive={() => open('receive')}
                   />
-                  <CurrencyStrip rates={rates} />
                 </div>
 
                 <div className="min-w-0">
@@ -307,54 +306,6 @@ function Action({
       </span>
       <span className="text-[11px] font-medium">{label}</span>
     </button>
-  );
-}
-
-// ── Currency strip ────────────────────────────────────────────────────────
-
-/**
- * The reference showed euro, sterling and franc. KORA is an African corridor
- * provider, so the currencies that matter here are the ones it declares
- * corridors for. Quoted per 1,000 naira: a single naira buys 0.0086 cedi,
- * which is accurate and unreadable.
- */
-function CurrencyStrip({ rates }: { rates: RatesPayload | null }) {
-  return (
-    <div>
-      <div className="mb-2 flex items-baseline justify-between">
-        <span className="text-[10px] uppercase tracking-[0.12em] text-ink-faint">
-          Per &#8358;1,000
-        </span>
-        {rates && (
-          <span className="text-[10px] text-ink-ghost">
-            {rates.stale ? 'cached rate' : 'live'}
-          </span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {(rates?.rates ?? []).map((rate) => (
-          <div key={rate.code} className="rounded-xl border border-rule bg-paper p-3">
-            <div className="flex items-center gap-1.5">
-              <Flag code={rate.country} size={13} />
-              <span className="text-[10px] font-medium text-ink-muted">{rate.code}</span>
-            </div>
-            <div className="tabular mt-2 text-[17px] font-semibold tracking-[-0.02em]">
-              {rate.value.toLocaleString(undefined, {
-                minimumFractionDigits: rate.value >= 1000 ? 0 : 2,
-                maximumFractionDigits: rate.value >= 1000 ? 0 : 2,
-              })}
-            </div>
-            <div className="truncate text-[10px] text-ink-faint">{rate.name}</div>
-          </div>
-        ))}
-
-        {!rates &&
-          Array.from({ length: 4 }, (_, i) => (
-            <div key={i} className="h-[86px] animate-pulse rounded-xl border border-rule bg-paper-sunk" />
-          ))}
-      </div>
-    </div>
   );
 }
 
