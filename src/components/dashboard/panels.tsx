@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   ArrowDownLeft,
   ArrowRight,
@@ -107,13 +106,25 @@ export function useBalance() {
 }
 
 /**
- * Both panels end at the same place: a sentence handed to the real corridor
- * engine. The manual keypad composes that sentence from fields, the agent
- * reads it from a person. Neither one gets its own payment path, because a
- * second path is a second set of rules to keep honest.
+ * What one panel hands to the send panel.
+ *
+ * Kora Agent and the beneficiary book both end in the same place: the send
+ * form, filled in. They used to navigate to a separate page carrying a
+ * sentence in the URL, which meant a second screen that had to re-derive
+ * everything the dashboard already knew, including the balance it was
+ * spending from.
+ *
+ * Filling a form the person then reads is different from prefilling one they
+ * never asked for. Both of these follow an explicit action: picking a
+ * beneficiary, or asking the agent to read a sentence.
  */
-function intentHref(text: string) {
-  return `/send?intent=${encodeURIComponent(text)}`;
+export interface SendDraft {
+  name: string;
+  /** ISO 3166-1 alpha-2. */
+  country: string;
+  account?: string;
+  amount?: number;
+  note?: string;
 }
 
 // ── Send ──────────────────────────────────────────────────────────────────
@@ -157,10 +168,13 @@ interface SentPayment {
 export function SendPanel({
   rates,
   balance,
+  draft,
   onSent,
 }: {
   rates: RatesPayload | null;
   balance: BalancePayload | null;
+  /** Filled in by Kora Agent or the beneficiary book. Empty otherwise. */
+  draft?: SendDraft | null;
   onSent?: () => void;
 }) {
   const destinations = useMemo(() => destinationsFrom(rates), [rates]);
@@ -168,11 +182,11 @@ export function SendPanel({
   const [step, setStep] = useState<'form' | 'review' | 'done'>('form');
   const [picking, setPicking] = useState(false);
 
-  const [name, setName] = useState('');
-  const [country, setCountry] = useState('');
-  const [account, setAccount] = useState('');
-  const [digits, setDigits] = useState('');
-  const [note, setNote] = useState('');
+  const [name, setName] = useState(draft?.name ?? '');
+  const [country, setCountry] = useState(draft?.country ?? '');
+  const [account, setAccount] = useState(draft?.account ?? '');
+  const [digits, setDigits] = useState(draft?.amount ? String(draft.amount) : '');
+  const [note, setNote] = useState(draft?.note ?? '');
 
   const [quote, setQuote] = useState<KoraQuoteShape | null>(null);
   const [sent, setSent] = useState<SentPayment | null>(null);
@@ -571,8 +585,7 @@ interface ParsedIntent {
  * That boundary is the point. An agent that could spend from this balance on
  * the strength of its own parse would be a worse product, not a better one.
  */
-export function AgentPanel() {
-  const router = useRouter();
+export function AgentPanel({ onCompose }: { onCompose?: (draft: SendDraft) => void }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -726,18 +739,26 @@ export function AgentPanel() {
 
           <button
             type="button"
-            onClick={() => router.push(intentHref(lastText))}
+            onClick={() => {
+              if (!parsed.resolution.selected) return;
+              onCompose?.({
+                name: parsed.intent.recipientName ?? '',
+                country: parsed.resolution.selected.country,
+                amount: parsed.intent.amount ?? undefined,
+                note: parsed.intent.purpose ?? undefined,
+              });
+            }}
             disabled={!ready}
             className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-ink text-sm font-medium text-paper transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:bg-ink-ghost"
           >
-            Review payment
+            Take this to Send
             <ArrowRight className="h-4 w-4" strokeWidth={2} />
           </button>
 
           <p className="mt-3 text-[10px] leading-relaxed text-ink-faint">
             The agent filled that object and stopped. It holds no signer and cannot move
-            money. Review runs the corridor engine, and a payment still needs you to confirm
-            a quote.
+            money. It hands the fields to the send form, where you read them and confirm a
+            quote before anything leaves the balance.
           </p>
         </div>
       )}
@@ -758,8 +779,7 @@ function Slot({ label, value }: { label: string; value: string | null }) {
 
 // ── Beneficiaries ─────────────────────────────────────────────────────────
 
-export function BeneficiaryPanel() {
-  const router = useRouter();
+export function BeneficiaryPanel({ onCompose }: { onCompose?: (draft: SendDraft) => void }) {
   const [query, setQuery] = useState('');
 
   const filtered = useMemo(() => {
@@ -839,7 +859,7 @@ export function BeneficiaryPanel() {
               <button
                 type="button"
                 onClick={() =>
-                  router.push(intentHref(`Send ₦100,000 to ${b.name} in ${b.countryName}.`))
+                  onCompose?.({ name: b.name, country: b.country, account: b.account })
                 }
                 className="rounded-md border border-rule px-2 py-1 text-[11px] font-medium transition-colors hover:border-ink hover:bg-ink hover:text-paper"
               >

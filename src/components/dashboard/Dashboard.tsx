@@ -15,6 +15,7 @@ import {
   useRates,
   type BalancePayload,
   type RatesPayload,
+  type SendDraft,
 } from './panels';
 import { CardLabel, DirectionMark, IconButton, Monogram } from './parts';
 import { Flag } from '../Flag';
@@ -42,10 +43,25 @@ import {
  */
 export function Dashboard() {
   const [panel, setPanel] = useState<PanelMode | null>(null);
+  const [draft, setDraft] = useState<SendDraft | null>(null);
   const rates = useRates();
   const { balance, refresh } = useBalance();
 
-  const open = (next: PanelMode | null) => setPanel(next);
+  /**
+   * Opening a panel by hand clears any draft. A set of fields composed ten
+   * minutes ago by the agent should not reappear under a send somebody
+   * started themselves.
+   */
+  const open = (next: PanelMode | null) => {
+    setDraft(null);
+    setPanel(next);
+  };
+
+  /** Kora Agent and the beneficiary book both land here. */
+  const compose = (next: SendDraft) => {
+    setDraft(next);
+    setPanel('send');
+  };
 
   return (
     /*
@@ -97,10 +113,15 @@ export function Dashboard() {
             {panel !== null && (
               <PanelFrame title={PANEL_TITLES[panel]} onClose={() => open(null)}>
                 {panel === 'send' && (
-                  <SendPanel rates={rates} balance={balance} onSent={refresh} />
+                  <SendPanel
+                    rates={rates}
+                    balance={balance}
+                    draft={draft}
+                    onSent={refresh}
+                  />
                 )}
-                {panel === 'agent' && <AgentPanel />}
-                {panel === 'beneficiaries' && <BeneficiaryPanel />}
+                {panel === 'agent' && <AgentPanel onCompose={compose} />}
+                {panel === 'beneficiaries' && <BeneficiaryPanel onCompose={compose} />}
                 {panel === 'receive' && <ReceivePanel onCredited={refresh} />}
               </PanelFrame>
             )}

@@ -1,6 +1,6 @@
 'use client';
 
-import { cx } from './ui';
+import { cn } from '@/lib/utils';
 
 /**
  * Country flags as images rather than emoji.
@@ -30,7 +30,7 @@ export function Flag({
       width={size}
       height={Math.round(size * 0.75)}
       loading="lazy"
-      className={cx('inline-block shrink-0 rounded-[2px] object-cover align-[-2px]', className)}
+      className={cn('inline-block shrink-0 rounded-[2px] object-cover align-[-2px]', className)}
       style={{ width: size, height: Math.round(size * 0.75) }}
     />
   );
