@@ -219,6 +219,29 @@ export function createBankTransferCharge(input: BankTransferChargeInput) {
   );
 }
 
+/**
+ * Flutterwave's account expiry, as a timestamp we can actually rely on.
+ *
+ * It arrives looking like "2026-09-18 3:43:27 AM": no timezone, no offset, and
+ * in test mode often only seconds after the charge was created. Adopting that
+ * verbatim produces a funding request that is born expired, which is exactly
+ * what happened the first time this ran: the corridor reported `expired` and
+ * then `funded` moments later, in that order.
+ *
+ * So it is only adopted when it parses and still leaves a usable window.
+ * Otherwise the caller keeps its own quote expiry, which is the clock the
+ * state machine was built around and the one the user was quoted against.
+ */
+export function usableExpiry(raw: string | null, minimumMs = 60_000): string | null {
+  if (!raw) return null;
+
+  const ms = Date.parse(raw);
+  if (!Number.isFinite(ms)) return null;
+  if (ms - Date.now() < minimumMs) return null;
+
+  return new Date(ms).toISOString();
+}
+
 // ── Verification ──────────────────────────────────────────────────────────
 
 export interface VerifiedTransaction {

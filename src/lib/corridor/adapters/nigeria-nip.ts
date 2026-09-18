@@ -26,6 +26,7 @@ import {
   createBankTransferCharge,
   isFlutterwaveConfigured,
   isTestMode,
+  usableExpiry,
   verifyByReference,
 } from '@/lib/flutterwave/client';
 
@@ -124,6 +125,11 @@ export const nigeriaNipAdapter: KoraRailAdapter = {
       });
 
       if (charge.ok) {
+        // Only take the partner's expiry when it leaves a usable window. Its
+        // test mode returns one seconds away, which would make the request
+        // expire before anybody could read the account number.
+        const partnerExpiry = usableExpiry(charge.data.expiresAt);
+
         account = {
           bankName: charge.data.bankName,
           accountNumber: charge.data.accountNumber,
@@ -132,7 +138,7 @@ export const nigeriaNipAdapter: KoraRailAdapter = {
           // into their bank app is its number and not ours. Printing the
           // quote here produces a transfer that never reconciles.
           payAmount: `${Number(charge.data.transferAmount).toLocaleString()} ${quote.currency}`,
-          expiresAt: charge.data.expiresAt ?? quote.expiresAt,
+          expiresAt: partnerExpiry ?? quote.expiresAt,
         };
 
         settlement = {
@@ -141,7 +147,9 @@ export const nigeriaNipAdapter: KoraRailAdapter = {
           partnerReference: charge.data.transferReference,
         };
 
-        opening = `Flutterwave issued virtual account ${charge.data.accountNumber} at ${charge.data.bankName}, expiring ${account.expiresAt}.`;
+        opening = partnerExpiry
+          ? `Flutterwave issued virtual account ${charge.data.accountNumber} at ${charge.data.bankName}, expiring ${partnerExpiry}.`
+          : `Flutterwave issued virtual account ${charge.data.accountNumber} at ${charge.data.bankName}. Its stated expiry of "${charge.data.expiresAt}" was unusable, so the quote window stands.`;
       } else {
         opening = `Flutterwave could not issue an account (${charge.code}: ${charge.message}). Fell back to the fixed sandbox account, which a human has to reconcile.`;
       }
