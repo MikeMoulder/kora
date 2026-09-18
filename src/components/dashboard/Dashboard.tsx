@@ -9,6 +9,7 @@ import { SpendChart } from './SpendChart';
 import {
   AgentPanel,
   BeneficiaryPanel,
+  ConvertPanel,
   ReceivePanel,
   SendPanel,
   useRates,
@@ -40,13 +41,29 @@ import {
  */
 export function Dashboard() {
   const [panel, setPanel] = useState<PanelMode | null>(null);
+  const [draftAmount, setDraftAmount] = useState<number | null>(null);
   const rates = useRates();
+
+  /**
+   * Opening any panel clears the draft. It exists only for the hop Convert
+   * makes into Send, so a figure typed ten minutes ago cannot reappear under
+   * a send the person started from the rail.
+   */
+  const open = (next: PanelMode | null) => {
+    setDraftAmount(null);
+    setPanel(next);
+  };
+
+  const quoteFromConvert = (amount: number) => {
+    setDraftAmount(amount);
+    setPanel('send');
+  };
 
   return (
     <div className="canvas min-h-screen p-0 lg:p-6 xl:p-9 2xl:p-14">
       <div className="surface mx-auto flex min-h-screen w-full max-w-[1320px] overflow-hidden border-rule lg:min-h-0 lg:rounded-[28px] lg:border lg:shadow-[0_2px_4px_rgba(15,17,16,0.04),0_24px_60px_-20px_rgba(15,17,16,0.18)]">
         <div className="hidden lg:flex">
-          <Sidebar panel={panel} onSelect={setPanel} />
+          <Sidebar panel={panel} onSelect={open} />
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -54,7 +71,7 @@ export function Dashboard() {
 
           <div className="flex min-w-0 flex-1 flex-col xl:flex-row">
             <main className="min-w-0 flex-1 space-y-4 px-5 pb-8 sm:px-7">
-              {panel === null && <PanelTriggers onSelect={setPanel} />}
+              {panel === null && <PanelTriggers onSelect={open} />}
 
               <div
                 className={cn(
@@ -67,8 +84,9 @@ export function Dashboard() {
                 <div className="min-w-0 space-y-4">
                   <BalanceCard
                     rates={rates}
-                    onPay={() => setPanel('send')}
-                    onReceive={() => setPanel('receive')}
+                    onPay={() => open('send')}
+                    onConvert={() => open('convert')}
+                    onReceive={() => open('receive')}
                   />
                   <CurrencyStrip rates={rates} />
                 </div>
@@ -82,10 +100,15 @@ export function Dashboard() {
             </main>
 
             {panel !== null && (
-              <PanelFrame title={PANEL_TITLES[panel]} onClose={() => setPanel(null)}>
-                {panel === 'send' && <SendPanel rates={rates} />}
+              <PanelFrame title={PANEL_TITLES[panel]} onClose={() => open(null)}>
+                {panel === 'send' && (
+                  <SendPanel rates={rates} initialAmount={draftAmount ?? undefined} />
+                )}
                 {panel === 'agent' && <AgentPanel />}
                 {panel === 'beneficiaries' && <BeneficiaryPanel />}
+                {panel === 'convert' && (
+                  <ConvertPanel rates={rates} onQuote={quoteFromConvert} />
+                )}
                 {panel === 'receive' && <ReceivePanel />}
               </PanelFrame>
             )}
@@ -197,10 +220,12 @@ function PanelTriggers({ onSelect }: { onSelect: (panel: PanelMode) => void }) {
 function BalanceCard({
   rates,
   onPay,
+  onConvert,
   onReceive,
 }: {
   rates: RatesPayload | null;
   onPay: () => void;
+  onConvert: () => void;
   onReceive: () => void;
 }) {
   const [hidden, setHidden] = useState(false);
@@ -247,7 +272,11 @@ function BalanceCard({
           label="Pay"
           onClick={onPay}
         />
-        <Action icon={<Repeat className="h-4 w-4" strokeWidth={1.8} />} label="Convert" />
+        <Action
+          icon={<Repeat className="h-4 w-4" strokeWidth={1.8} />}
+          label="Convert"
+          onClick={onConvert}
+        />
         <Action
           icon={<ArrowDownLeft className="h-4 w-4" strokeWidth={1.8} />}
           label="Receive"
