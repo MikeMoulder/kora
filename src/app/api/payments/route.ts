@@ -110,7 +110,7 @@ export async function POST(request: Request) {
     // ── 4. Provision the beneficiary's wallet ─────────────────────────────
     const [firstName, ...rest] = name.split(' ');
 
-    const provisioned = await registerUserWithWallet({
+    const provisioned = await provisionWallet({
       externalId: beneficiaryKey(name, country),
       firstName,
       lastName: rest.join(' ') || firstName,
@@ -156,6 +156,34 @@ export async function POST(request: Request) {
   } catch (err) {
     return fail(err);
   }
+}
+
+/**
+ * Provision the beneficiary's wallet, with retries.
+ *
+ * `WALLET_CREATION_FAILED` really is transient sometimes. An identical call
+ * that failed once succeeded twice in a row moments later, and by then the
+ * payment had already been reversed. Losing somebody's transfer to a flaky
+ * upstream is a worse outcome than waiting three seconds.
+ *
+ * Retrying is safe because the call is idempotent on `externalId`: Pollar
+ * returns the same user and the same wallet rather than making a second one,
+ * which is verified behaviour and not an assumption.
+ */
+async function provisionWallet(user: {
+  externalId: string;
+  firstName: string;
+  lastName: string;
+}) {
+  let last = await registerUserWithWallet(user);
+
+  for (let attempt = 0; attempt < 2 && !last.ok; attempt += 1) {
+    if (last.code !== 'WALLET_CREATION_FAILED') break;
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    last = await registerUserWithWallet(user);
+  }
+
+  return last;
 }
 
 /**
