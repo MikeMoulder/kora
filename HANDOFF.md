@@ -4,8 +4,8 @@ Living progress tracker. Updated at the end of every task.
 
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
-**Current phase:** W, scheduled payments
-**Commits:** 163
+**Current phase:** X, the scheduler
+**Commits:** 165
 
 ---
 
@@ -26,8 +26,21 @@ Four things to check the moment it is up, because none is exercised by the build
   Upstash variables have to exist in Vercel's environment as well as in `.env.local`. If
   it comes back false, every scheduled payment is being held in a serverless function's
   memory, which is the worst possible place for money to be reserved.
-- A scheduled payment has to survive one full cycle on the deployed host: book it a
-  minute out, leave the tab open, watch it go.
+- `/api/schedule` has to answer with `runner: 'cron'`, which means `KORA_RUNNER_SECRET`
+  reached the deployment. If it says `dashboard`, the run route is open to the internet.
+- The VPS timer has to be wired up. `runner: 'cron'` only means the browser has stopped
+  driving it, not that anything has started. Set `KORA_RUNNER_SECRET` and forget the timer
+  and every scheduled payment sits held forever, with the panel truthfully saying a
+  scheduler is expected.
+
+Order matters on those last two: install the timer first, then set the secret. The other
+way round leaves a window where nothing at all sends payments.
+
+**The VPS.** `scripts/kora-runner.sh` carries its own install instructions for both cron
+and a systemd timer. Keep `/etc/kora-runner.env` at mode 600; it holds the value that
+decides when payments fire. Verify with `systemctl list-timers kora-runner.timer` and
+`journalctl -u kora-runner.service -f`, and confirm a real payment lands rather than
+trusting the timer's own log.
 
 Add the deployed URL to Pollar under Build to Domains. Domains has no wildcards, so the
 preview URL and the production URL are two separate entries. It is matched character for
@@ -55,14 +68,14 @@ immediate  2c44ae641c27913d7e7fdb19ecdcf8ac6273e6ca1ba67dbe830b1eb767530508
 
 **Worth doing if there is time, in this order:**
 
-1. **The duplicate-runner hazard.** `redisSchedule.transition` does read, check, write
-   without a lock, so two runners on the same tick could in principle both claim and both
-   deliver. It cannot happen today, because the dashboard is the only trigger and
-   settlement takes seconds. It becomes real the day this runs on a cron with two
-   instances, and the failure it produces is a payment delivered twice. The fix is a Lua
-   script doing the compare and the set in one round trip, and `transition` already has
-   the right signature for it.
-2. **A cron.** One Vercel entry pointed at `POST /api/schedule/run`. Do item 1 first.
+1. ~~**The duplicate-runner hazard.**~~ Addressed in phase X, by making two runners
+   impossible rather than by making the write atomic. The secret cannot be given to a
+   browser, and `flock -n` on the VPS means one timer and no overlap. The unlocked read,
+   check, write in `redisSchedule.transition` is still there and still has the right
+   signature for a Lua script; it now needs two independently configured hosts holding the
+   same secret to matter.
+2. ~~**A cron.**~~ Done, and pointed at a VPS rather than at Vercel Cron, which does not
+   promise exactly-once.
 3. **The README `## Layout` block** is stale. It lists `src/app/corridors/`, `RouteRail`
    and `Passport`, none of which exist. It also has no mention of scheduling.
 4. **The transaction list draws the same counterparty several times in a row** on some
@@ -400,6 +413,19 @@ payment.
 | 2026-09-18 | Typecheck during the schedule work | `npm run typecheck` | Whole project | Clean, run 9 times |
 | 2026-09-18 | Smoke during the schedule work | `npm run smoke` | 34 checks | All passed, run 3 times |
 | 2026-09-18 | Production build with scheduling | `npm run build` | 26 routes + Proxy | Clean |
+
+| 2026-09-18 | Runner auth, unconfigured | `curl`, no secret set | 2 | Open with no header, 401 with one |
+| 2026-09-18 | Runner auth, configured | `curl`, 4 credential shapes | 4 | Missing, bad, right-length-wrong, correct |
+| 2026-09-18 | Runner mode reported | `GET /api/schedule` both ways | 2 | dashboard then cron |
+| 2026-09-18 | Dashboard stops polling in cron mode | Browser fetch counter, 10s idle | 1 | 0 list calls, 0 run calls |
+| 2026-09-18 | Runner script syntax | `bash -n scripts/kora-runner.sh` | 1 | Clean |
+| 2026-09-18 | Runner script, nothing due | `bash scripts/kora-runner.sh` | 1 | Silent, correct |
+| 2026-09-18 | Runner script, real delivery | Reserve, refuse browser, run script | 1 full run | 1 sent by the script alone |
+| 2026-09-18 | That delivery, on Horizon | `GET /transactions/:hash` | 1 | successful, ledger 4741312, 0.7047460 USDC |
+| 2026-09-18 | Runner script, second run | `bash scripts/kora-runner.sh` again | 1 | due 0, no duplicate |
+| 2026-09-18 | Typecheck with runner auth | `npm run typecheck` | Whole project | Clean, run 3 times |
+| 2026-09-18 | Smoke with runner auth | `npm run smoke` | 34 checks | All passed |
+| 2026-09-18 | Co-author strip, content safety | `git diff backup HEAD` | 26 commits | Empty, messages only |
 
 ## Done so far
 
@@ -1268,6 +1294,85 @@ The server door answers 404 on every Earn path, so Earn is SDK only and cannot b
 from a route handler the way the beneficiary wallet provisioning is.
 
 `npm run probe:earn` is kept. Nothing in the app imports it.
+
+### Phase X, the runner got a secret and a real scheduler
+
+Requested: can the VPS drive this.
+
+Yes, and it is the better answer rather than a workaround. The finding that made it worth
+doing properly is that the open endpoint was a problem on its own.
+
+**`POST /api/schedule/run` had no authentication.** It settles every payment that has
+fallen due. It cannot send money that was not already scheduled and reserved, so it was
+never a way to drain the treasury, but it did let anyone who found the path decide *when*
+payments fire. On localhost that is nothing. Deployed, it is a stranger holding the clock.
+
+**It takes a shared secret now, and that has a second consequence worth more than the
+first.** A browser cannot hold a secret: anything prefixed `NEXT_PUBLIC_` ships to every
+visitor in the bundle, and the demo session cookie is unsigned and not HttpOnly by
+`lib/demo-session`'s own documentation, so accepting it here would have been a lock with
+the key taped to it. The dashboard therefore loses the ability to trigger payments at all.
+
+**Which means a configured deployment has exactly one runner.** That is the fix for the
+duplicate-delivery hazard in the Redis store rather than a workaround for it. The unlocked
+read, check, write can only go wrong with two runners firing at once. One timer on one
+host, wrapped in `flock -n`, makes that unreachable rather than merely unlikely. It is a
+better fix than the Lua script the store's own comment proposes, and it is cheaper.
+
+**Vercel Cron would not have given that.** It does not promise exactly-once: a retry or an
+overlapping invocation is two callers, which is precisely the case the store cannot
+survive. A VPS timer is the safer host here, which is not the usual direction for that
+comparison.
+
+**Two modes, and the server decides which.** With no secret the route is open and the
+dashboard drives it, which is the development default. `GET /api/schedule` reports
+`runner: 'cron' | 'dashboard'` and the panel renders whichever is live.
+
+The wording is "a scheduler is expected", not "a scheduler is running". If the secret is
+set and nobody wired the timer up, payments sit held, and the server has no way to tell
+that from a healthy cron. Claiming otherwise would be inventing a fact about
+infrastructure.
+
+**The browser stops polling in cron mode** rather than firing a request every sixty
+seconds whose only possible outcome is a 401 in the console for the length of a demo. The
+flag lives in a ref, not in state, so the polling effect does not tear down and rebuild
+its interval every time the list changes.
+
+**Small things that are easy to get wrong.** Comparison is `timingSafeEqual` with the
+length check folded in rather than returning early, because an early return on length is
+itself an oracle. A secret containing `replace-me` is treated as absent, the same rule
+`hasServerKey` applies to the Pollar key: a deployment that copied `.env.example` verbatim
+has a password every reader of the repository knows. A header sent to an unconfigured
+deployment is refused rather than waved through, because "auth is optional" is how every
+optional auth check has ever failed.
+
+The route answers 401 by hand rather than through `fail`, which returns 400 for
+everything. A cron that gets 400 looks like it sent malformed input, and whoever set it up
+goes looking at the wrong thing.
+
+**`scripts/kora-runner.sh` is the VPS side.** `flock -n` so a slow settlement cannot pile
+up callers, `--fail-with-body` so a 401 prints its reason instead of leaving `curl exit 22`
+as the only clue, and silent unless something moved, because a minute-by-minute log of
+"due 0" buries the one line that matters. Both cron and systemd units are in its header.
+`Persistent=true` is deliberately absent from the timer: a missed minute must not queue and
+fire a burst of catch-up runs after a reboot, and the next tick collects everything due
+anyway.
+
+### Phase X2, the co-author lines
+
+`AGENTS.md` says never to add a co-author to commits. Twenty-eight commits carried
+`Co-Authored-By: Claude`, added against that instruction because a harness reminder
+supplied the lines and was followed over the project's own rule. The reminder itself defers
+to `AGENTS.md`, so there was never a conflict to resolve.
+
+Twenty-six of them were unpushed and have been rewritten with `git filter-branch
+--msg-filter` over `origin/main..HEAD`. `git diff backup-before-coauthor-strip HEAD` is
+empty: messages changed, no file content did. The backup branch is
+`backup-before-coauthor-strip`, and deleting it is safe once the history looks right.
+
+**Two are still on GitHub** and still carry the line: `729cf5a` and `60e32fb`, the current
+`origin/main`. Removing those needs a force-push, which is not something to do to somebody
+else's remote without being asked.
 
 ## Known gaps, stated plainly
 
