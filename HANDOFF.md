@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 131
+**Commits:** 133
 
 ---
 
@@ -270,8 +270,19 @@ Still outstanding, and both small:
 | 2026-09-18 | srcset widths per drawn size | Browser DOM | 36 to 44px avatars | w=80 and w=96, the retina pairs, no other widths requested |
 | 2026-09-18 | Typecheck through the optimiser work | `npx tsc --noEmit` | Whole project | Clean, run 4 times |
 | 2026-09-18 | Production build with the optimiser | `npm run build` | 22 routes | Clean, run 3 times |
+| 2026-09-18 | Ramps auth, bearer token | `curl sdk.api.pollar.xyz/v1/ramps/*` | 2 endpoints | 401 `API_KEY_NOT_FOUND`, wrong header |
+| 2026-09-18 | Ramps auth, `x-pollar-api-key` with Origin | `curl` | 2 endpoints | 401 `SDK_AUTH_INVALID_TOKEN`, the real answer |
+| 2026-09-18 | End to end, first run | `npm run e2e` | 40 checks | 1 failed, probe stopped at CORS with 403, evidence too weak |
+| 2026-09-18 | End to end, after sending Origin | `npm run e2e` | 40 checks | All passed |
+| 2026-09-18 | Corridor through the browser | Manual, form to completion | 1 full run | Three legs rendered, live probe shown, `KORA-PAY-W7RCPE` |
+| 2026-09-18 | Smoke after the payout leg | `npm run smoke` | 34 checks | All passed, no regression |
+| 2026-09-18 | Activity after the payout leg | `npm run probe:activity` | 33 checks | All passed, no regression |
 
-**Total automated checks passing: 67.** 34 from `npm run smoke`, 33 from `npm run probe:activity`.
+**Total automated checks passing: 107.** 34 from `npm run smoke`, 33 from `npm run probe:activity`, 40 from `npm run e2e`.
+
+`e2e` is not in the default run. It spends testnet USDC out of the float and writes to the
+real ledger, and it refuses to start rather than half running when the float cannot cover the
+payment.
 
 ### What the tests caught
 
@@ -637,6 +648,52 @@ Worth knowing for the next person: the browser pane backgrounds itself, and a pa
 not being rendered never decodes an image. `img.decode()` hangs and `naturalWidth` stays 0,
 which looks exactly like a broken image. `createImageBitmap` on the fetched bytes decodes off
 the render path and gives a real answer.
+
+### Phase T, the corridor confirmed end to end
+
+The milestone was to prove the whole route runs, not to assume it. `npm run e2e` is now that
+proof: forty checks across eleven stages, against a running server, spending real testnet
+USDC.
+
+Every assertion is made against something outside the app. Balances come from Horizon rather
+than from our own response, the transaction is re-read off the ledger, and the boliviano leg
+carries the status code Pollar answered with on that run. An end to end test that only reads
+its own output proves the code is self consistent, which was never the question.
+
+**Verified run, 40/40:**
+
+```
+reference   KORA-PAY-E7V8Z8
+sent        1,000 NGN off the KORA ledger
+delivered   0.704746 USDC on Stellar testnet
+tx          8a3932998d015fca4128fc90fd5014a15ac0c4f1560481e5c863fc4c90b4acab
+            https://stellar.expert/explorer/testnet/tx/8a3932998d015fca4128fc90fd5014a15ac0c4f1560481e5c863fc4c90b4acab
+from        GAEHDX7IXJHG2UUCCUES63C7WBLPXJX6IHTA6TGENHDJBSZ65AB7FWQE   KORA treasury
+to          GAXMTAOXFC4CZFM3BDA52FC3Q7NHN47XJFXZV7YDQ7TCZJIPQVT63FDA   Carlos Mamani's Pollar wallet
+last mile   ~ 7.83 BOB via Stereum ACH, SIMULATED
+            401 SDK_AUTH_INVALID_TOKEN from /ramps/quote on that run
+```
+
+**The boliviano leg now exists.** It was not mocked, not labelled, not present, which for a
+brief asking the African path to hand off cleanly to Pollar was the missing half. Every
+payment now returns a `payout` object: the live BOB figure derived from USDC that actually
+arrived, the anchor read from the registry, and the exact `/ramps/offramp` body transcribed
+from the installed `@pollar/core`. The completion screen draws all three legs under the
+existing ownership language.
+
+It never executes and never pretends to. The quote id is a named placeholder rather than a
+fake, nothing carries a completed status, and each payment probes `/ramps/quote` live so the
+refusal is a status code from that request rather than a claim in a comment.
+
+**The first run failed one check, and it was the evidence rather than the corridor.** The
+probe reached Pollar with no `Origin` header, so CORS turned it away with 403
+`ORIGIN_NOT_ALLOWED`, which is a true statement about browsers and says nothing about who may
+run an off-ramp. Sending the app's own origin gets the request past the door to the decision
+actually being cited. Worth knowing generally: `sdk.api.pollar.xyz` checks origin before
+auth, so a server-to-server probe reads as a CORS failure unless it names an allowed origin.
+
+Also confirmed: the SDK header is `x-pollar-api-key`, not `Authorization: Bearer`. A bearer
+token answers 401 `API_KEY_NOT_FOUND`, which looks like a bad key and is not.
 
 ### Known gaps in the corridor, stated plainly
 
