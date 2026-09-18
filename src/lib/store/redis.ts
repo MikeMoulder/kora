@@ -21,6 +21,7 @@
 import { Redis } from '@upstash/redis';
 import type { FundingRecord, FundingStore } from '../corridor/store';
 import type { LedgerEntry, LedgerStore } from '../account/ledger';
+import type { ScheduleStore, ScheduledPayment } from '../schedule/types';
 
 const URL = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL ?? '';
 const TOKEN = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN ?? '';
@@ -44,6 +45,8 @@ const FUNDING_KEY = (reference: string) => `kora:funding:${reference}`;
 const FUNDING_INDEX = 'kora:funding:index';
 const LEDGER_KEY = (reference: string) => `kora:ledger:entry:${reference}`;
 const LEDGER_LIST = 'kora:ledger:entries';
+const SCHEDULE_KEY = (reference: string) => `kora:schedule:${reference}`;
+const SCHEDULE_INDEX = 'kora:schedule:index';
 
 export const redisFundingStore: FundingStore = {
   async put(record) {
@@ -113,5 +116,75 @@ export const redisLedger: LedgerStore = {
   async list() {
     const entries = await client().lrange<LedgerEntry>(LEDGER_LIST, 0, -1);
     return entries.sort((a, b) => a.at.localeCompare(b.at));
+  },
+};
+
+/**
+ * Scheduled payments.
+ *
+ * A set of references plus one key each, rather than a list of records. The
+ * runner reads every held payment on each tick and the panel reads the same
+ * set, so the access pattern is "all of them" either way, and a set gives the
+ * one operation a list cannot: settling a single payment without rewriting the
+ * others.
+ */
+export const redisSchedule: ScheduleStore = {
+  async put(payment) {
+    const redis = client();
+
+    /*
+     * `nx` decides, not a read followed by a write.
+     *
+     * Same reasoning as the ledger. Two requests arriving together would both
+     * find nothing on the read and both write, and for a scheduled payment
+     * that is a duplicate reservation: the naira comes off the balance twice
+     * for one instruction.
+     */
+    const claimed = await redis.set(SCHEDULE_KEY(payment.reference), payment, { nx: true });
+    if (claimed === null) return false;
+
+    await redis.sadd(SCHEDULE_INDEX, payment.reference);
+    return true;
+  },
+
+  async get(reference) {
+    return (await client().get<ScheduledPayment>(SCHEDULE_KEY(reference))) ?? null;
+  },
+
+  async settle(reference, status, outcome) {
+    const redis = client();
+    const current = await redis.get<ScheduledPayment>(SCHEDULE_KEY(reference));
+
+    /*
+     * The honest note about this one.
+     *
+     * Read, check, write is not atomic, so two runners firing on the same tick
+     * could in principle both read `held` and both go on to deliver. It is not
+     * closed here because closing it properly needs a Lua script or a lock,
+     * and the thing it would be protecting against does not exist in this
+     * deployment: the runner is triggered by the dashboard in one browser and
+     * settlement itself takes seconds, not milliseconds.
+     *
+     * It is written down rather than left for somebody to discover, because
+     * the day this runs on a cron with two instances it becomes real, and the
+     * failure it produces is a payment delivered twice.
+     */
+    if (!current || current.status !== 'held') return null;
+
+    const next: ScheduledPayment = { ...current, status, outcome };
+    await redis.set(SCHEDULE_KEY(reference), next);
+    return next;
+  },
+
+  async list() {
+    const redis = client();
+    const references = await redis.smembers(SCHEDULE_INDEX);
+    if (references.length === 0) return [];
+
+    const records = await Promise.all(
+      references.map((reference) => redis.get<ScheduledPayment>(SCHEDULE_KEY(reference))),
+    );
+
+    return records.filter((record): record is ScheduledPayment => record !== null);
   },
 };
