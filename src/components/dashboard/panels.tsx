@@ -197,6 +197,22 @@ export function SendPanel({
   const available = balance?.balance ?? 0;
   const destination = destinations.find((d) => d.country === country) ?? null;
 
+  /*
+   * A testing shortcut, and labelled as one.
+   *
+   * The amount is deliberately small. Every run spends real USDC out of
+   * KORA's float, the float is topped up twenty at a time on a two hour
+   * cooldown, and a mock button that quietly drains it is a trap rather than
+   * a convenience.
+   */
+  const fillMock = useCallback(() => {
+    setName('Carlos Mamani');
+    setCountry('BO');
+    setAccount('Banco Union ****4471');
+    setDigits('2000');
+    setNote('logo and brand system');
+  }, []);
+
   const ready = name.trim().length > 1 && country !== '' && amount >= 1000;
 
   const review = useCallback(async () => {
@@ -417,13 +433,23 @@ export function SendPanel({
           <Flag code={ACCOUNT.country} size={13} />
           {ACCOUNT.currency} balance
         </span>
-        <button
-          type="button"
-          onClick={() => setPicking(true)}
-          className="text-xs text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
-        >
-          Saved
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={fillMock}
+            title="Fill the form with test details"
+            className="rounded-md border border-dashed border-ink-ghost px-2 py-1 text-[10px] font-medium text-ink-faint transition-colors hover:border-ink hover:text-ink"
+          >
+            Fill mock
+          </button>
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            className="text-xs text-ink-muted underline-offset-4 transition-colors hover:text-ink hover:underline"
+          >
+            Saved
+          </button>
+        </div>
       </div>
 
       <div className="tabular mt-2 text-[11px] text-ink-faint">
