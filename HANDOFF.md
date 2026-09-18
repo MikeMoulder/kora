@@ -5,7 +5,7 @@ Living progress tracker. Updated at the end of every task.
 **Last updated:** 2026-09-18
 **Deadline:** 2026-09-18 13:00 UTC
 **Current phase:** N, interface revamp
-**Commits:** 125
+**Commits:** 126
 
 ---
 
@@ -513,9 +513,10 @@ account. Anything unparseable names the rail rather than inventing a person.
 
 **The transaction rows** were rebuilt on the supplied reference: portrait, who and what
 happened, how much, and nothing else. The direction badge on the right is gone, since the
-sign and the colour already say which way the money went. What replaces it is the
-reference's small circular glyph after the status word, carrying the row's provenance —
-solid ink for a real movement, hairline for opening history.
+sign and the colour already say which way the money went. The small circular glyph after the
+status word went with it. It had been carrying the row's provenance in its weight, solid for
+a real movement and hairline for opening history, so that signal is now only in the tooltip
+on the status word, along with the timestamp and the reason.
 
 **The spend chart** got the daily, weekly and yearly range it was missing, daily by default,
 behind a real select rather than the button that did nothing. It also came off SVG: a

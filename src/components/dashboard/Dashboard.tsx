@@ -18,7 +18,7 @@ import {
   type RatesPayload,
   type SendDraft,
 } from './panels';
-import { Avatar, CardLabel, IconButton, StatusMark } from './parts';
+import { Avatar, CardLabel, IconButton } from './parts';
 import { Flag } from '../Flag';
 import { ACCOUNT, formatNaira, relativeDay } from '@/lib/demo-data';
 import { RECENT_LIMIT, type ActivityItem, type ActivityPayload } from '@/lib/account/activity';
@@ -482,12 +482,16 @@ function TransactionRow({ tx }: { tx: ActivityItem }) {
 
       <div className="min-w-0 flex-1">
         <div className="truncate text-[14px] font-medium tracking-[-0.01em]">{tx.party}</div>
-        <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-ink-faint">
-          <span>{incoming ? 'Received' : 'Paid'}</span>
-          <StatusMark
-            real={tx.real}
-            title={`${relativeDay(tx.at)}. ${tx.detail}${tx.real ? '' : ' (opening history)'}`}
-          />
+        {/*
+          * The status word carries the tooltip now that the glyph beside it is
+          * gone. It was the only thing holding the timestamp and the reason for
+          * the movement, and neither has anywhere else on the card to live.
+          */}
+        <div
+          title={`${relativeDay(tx.at)}. ${tx.detail}${tx.real ? '' : ' (opening history)'}`}
+          className="mt-0.5 w-fit truncate text-[11.5px] text-ink-faint"
+        >
+          {incoming ? 'Received' : 'Paid'}
         </div>
       </div>
 
